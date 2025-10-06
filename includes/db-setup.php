@@ -56,7 +56,7 @@ function activate_custom_lottery_plugin() {
     ) $charset_collate;";
     dbDelta( $sql_audit );
 
-    // Table for customers
+    // Table for customers - ensuring this is created on activation/update
     $table_name_customers = $wpdb->prefix . 'lotto_customers';
     $sql_customers = "CREATE TABLE $table_name_customers (
         id bigint(20) NOT NULL AUTO_INCREMENT,

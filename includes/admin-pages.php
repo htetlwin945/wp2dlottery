@@ -90,8 +90,108 @@ function custom_lottery_admin_menu() {
         'custom-lottery-tools',
         'custom_lottery_tools_page_callback'
     );
+
+    add_submenu_page(
+        'custom-lottery-dashboard',
+        __( 'Customers', 'custom-lottery' ),
+        __( 'Customers', 'custom-lottery' ),
+        'manage_options',
+        'custom-lottery-customers',
+        'custom_lottery_customers_page_callback'
+    );
 }
 add_action( 'admin_menu', 'custom_lottery_admin_menu' );
+
+/**
+ * Callback for the Customers page.
+ */
+function custom_lottery_customers_page_callback() {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'lotto_customers';
+    $page_slug = 'custom-lottery-customers';
+
+    $action = isset($_REQUEST['action']) ? sanitize_key($_REQUEST['action']) : 'list';
+    $customer_id = isset($_REQUEST['customer_id']) ? absint($_REQUEST['customer_id']) : 0;
+
+    // Handle Add/Edit form submission
+    if (isset($_POST['submit_customer']) && check_admin_referer('cl_save_customer_action', 'cl_save_customer_nonce')) {
+        $customer_id = absint($_POST['customer_id']);
+        $customer_name = sanitize_text_field($_POST['customer_name']);
+        $phone = sanitize_text_field($_POST['phone']);
+
+        $data = ['customer_name' => $customer_name, 'phone' => $phone];
+
+        if ($customer_id > 0) { // Update existing customer
+            $original_data = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE id = %d", $customer_id), ARRAY_A);
+            if ($wpdb->update($table_name, $data, ['id' => $customer_id])) {
+                custom_lottery_log_action('customer_edited', ['customer_id' => $customer_id, 'original_data' => $original_data, 'new_data' => $data]);
+                echo '<div class="updated"><p>' . esc_html__('Customer updated successfully.', 'custom-lottery') . '</p></div>';
+            }
+        } else { // Add new customer
+            $data['last_seen'] = current_time('mysql');
+            if ($wpdb->insert($table_name, $data)) {
+                $new_customer_id = $wpdb->insert_id;
+                custom_lottery_log_action('customer_added', ['customer_id' => $new_customer_id, 'data' => $data]);
+                echo '<div class="updated"><p>' . esc_html__('Customer added successfully.', 'custom-lottery') . '</p></div>';
+            }
+        }
+        $action = 'list'; // Go back to the list view
+    }
+
+    // Handle deletion
+    if ($action === 'delete' && $customer_id > 0) {
+        $nonce = isset($_REQUEST['_wpnonce']) ? $_REQUEST['_wpnonce'] : '';
+        if (wp_verify_nonce($nonce, 'cl_delete_customer_' . $customer_id)) {
+            $customer_data = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE id = %d", $customer_id), ARRAY_A);
+            if ($wpdb->delete($table_name, ['id' => $customer_id])) {
+                custom_lottery_log_action('customer_deleted', ['customer_id' => $customer_id, 'deleted_data' => $customer_data]);
+                echo '<div class="updated"><p>' . esc_html__('Customer deleted successfully.', 'custom-lottery') . '</p></div>';
+            }
+        }
+        $action = 'list'; // Go back to the list view
+    }
+
+    // Display add/edit form or the list table
+    if ($action === 'add' || ($action === 'edit' && $customer_id > 0)) {
+        $customer = null;
+        if ($customer_id > 0) {
+            $customer = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE id = %d", $customer_id));
+        }
+        $form_title = $customer ? __('Edit Customer', 'custom-lottery') : __('Add New Customer', 'custom-lottery');
+        $button_text = $customer ? __('Save Changes', 'custom-lottery') : __('Add Customer', 'custom-lottery');
+        ?>
+        <div class="wrap">
+            <h1><?php echo esc_html($form_title); ?></h1>
+            <a href="?page=<?php echo esc_attr($page_slug); ?>" class="button">&larr; <?php esc_html_e('Back to Customers List', 'custom-lottery'); ?></a>
+            <form method="post" style="margin-top: 20px;">
+                <input type="hidden" name="customer_id" value="<?php echo esc_attr($customer_id); ?>">
+                <?php wp_nonce_field('cl_save_customer_action', 'cl_save_customer_nonce'); ?>
+                <table class="form-table">
+                    <tr>
+                        <th scope="row"><label for="customer_name"><?php esc_html_e('Customer Name', 'custom-lottery'); ?></label></th>
+                        <td><input type="text" id="customer_name" name="customer_name" value="<?php echo $customer ? esc_attr($customer->customer_name) : ''; ?>" class="regular-text" required></td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="phone"><?php esc_html_e('Phone', 'custom-lottery'); ?></label></th>
+                        <td><input type="text" id="phone" name="phone" value="<?php echo $customer ? esc_attr($customer->phone) : ''; ?>" class="regular-text" required></td>
+                    </tr>
+                </table>
+                <?php submit_button($button_text, 'primary', 'submit_customer'); ?>
+            </form>
+        </div>
+        <?php
+    } else {
+        echo '<div class="wrap">';
+        echo '<h1 class="wp-heading-inline">' . esc_html__('Customers', 'custom-lottery') . '</h1>';
+        echo '<a href="?page=' . esc_attr($page_slug) . '&action=add" class="page-title-action">' . esc_html__('Add New', 'custom-lottery') . '</a>';
+
+        $customers_list_table = new Lotto_Customers_List_Table();
+        $customers_list_table->prepare_items();
+        $customers_list_table->display();
+
+        echo '</div>';
+    }
+}
 
 /**
  * Callback for the Tools page.
