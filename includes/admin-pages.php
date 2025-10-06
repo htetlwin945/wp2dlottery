@@ -462,9 +462,41 @@ function custom_lottery_all_entries_page_callback() {
     } else {
         $lotto_list_table = new Lotto_Entries_List_Table();
         $lotto_list_table->prepare_items();
+
+        // Get default filter values for display
+        $timezone = new DateTimeZone('Asia/Yangon');
+        $current_time = new DateTime('now', $timezone);
+        $default_date = $current_time->format('Y-m-d');
+
+        $time_1201 = new DateTime($current_time->format('Y-m-d') . ' 12:01:00', $timezone);
+        $time_1630 = new DateTime($current_time->format('Y-m-d') . ' 16:30:00', $timezone);
+        $default_session = '12:01 PM';
+        if ($current_time > $time_1201 && $current_time <= $time_1630) {
+            $default_session = '4:30 PM';
+        }
+
+        $selected_date = isset($_GET['filter_date']) && !empty($_GET['filter_date']) ? sanitize_text_field($_GET['filter_date']) : $default_date;
+        $selected_session = isset($_GET['filter_session']) ? sanitize_text_field($_GET['filter_session']) : $default_session;
         ?>
         <div class="wrap">
             <h1 class="wp-heading-inline"><?php echo esc_html__('All Lottery Entries', 'custom-lottery'); ?></h1>
+
+            <form method="get" style="margin-bottom: 15px;">
+                <input type="hidden" name="page" value="<?php echo esc_attr($_REQUEST['page']); ?>">
+
+                <label for="filter-date"><?php echo esc_html__('Date:', 'custom-lottery'); ?></label>
+                <input type="date" id="filter-date" name="filter_date" value="<?php echo esc_attr($selected_date); ?>">
+
+                <label for="filter-session"><?php echo esc_html__('Session:', 'custom-lottery'); ?></label>
+                <select name="filter_session">
+                    <option value="all" <?php selected($selected_session, 'all'); ?>><?php _e('All Sessions', 'custom-lottery'); ?></option>
+                    <option value="12:01 PM" <?php selected($selected_session, '12:01 PM'); ?>>12:01 PM</option>
+                    <option value="4:30 PM" <?php selected($selected_session, '4:30 PM'); ?>>4:30 PM</option>
+                </select>
+
+                <input type="submit" class="button" value="<?php _e('Filter', 'custom-lottery'); ?>">
+            </form>
+
             <form method="post">
                 <?php $lotto_list_table->display(); ?>
             </form>
