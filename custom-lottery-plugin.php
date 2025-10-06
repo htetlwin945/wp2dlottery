@@ -18,11 +18,13 @@ if ( ! defined( 'WPINC' ) ) {
 }
 
 // Define plugin constants
+define( 'CUSTOM_LOTTERY_VERSION', '1.1.0' );
 define( 'CUSTOM_LOTTERY_PLUGIN_PATH', plugin_dir_path( __FILE__ ) );
 define( 'CUSTOM_LOTTERY_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
 // Include the class files and functions.
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/class-lotto-entries-list-table.php' );
+require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/class-lotto-customers-list-table.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/db-setup.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/admin-pages.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/ajax-handlers.php' );
@@ -97,3 +99,14 @@ function custom_lottery_frontend_scripts() {
     }
 }
 add_action('wp_enqueue_scripts', 'custom_lottery_frontend_scripts');
+
+/**
+ * Check the plugin version and run the activation function if the version has changed.
+ */
+function custom_lottery_check_version() {
+    if ( get_site_option( 'custom_lottery_version' ) != CUSTOM_LOTTERY_VERSION ) {
+        activate_custom_lottery_plugin();
+        update_site_option( 'custom_lottery_version', CUSTOM_LOTTERY_VERSION );
+    }
+}
+add_action( 'plugins_loaded', 'custom_lottery_check_version' );
