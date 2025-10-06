@@ -67,8 +67,44 @@ class Lotto_Entries_List_Table extends WP_List_Table {
         $orderby = isset($_GET['orderby']) ? sanitize_key($_GET['orderby']) : 'timestamp';
         $order = isset($_GET['order']) ? sanitize_key($_GET['order']) : 'desc';
 
+        // Get filter values
+        $timezone = new DateTimeZone('Asia/Yangon');
+        $current_time = new DateTime('now', $timezone);
+        $default_date = $current_time->format('Y-m-d');
+
+        $time_1201 = new DateTime($current_time->format('Y-m-d') . ' 12:01:00', $timezone);
+        $time_1630 = new DateTime($current_time->format('Y-m-d') . ' 16:30:00', $timezone);
+        $default_session = '12:01 PM';
+        if ($current_time > $time_1201 && $current_time <= $time_1630) {
+            $default_session = '4:30 PM';
+        }
+
+        $filter_date = isset($_GET['filter_date']) && !empty($_GET['filter_date']) ? sanitize_text_field($_GET['filter_date']) : $default_date;
+        $filter_session = isset($_GET['filter_session']) ? sanitize_text_field($_GET['filter_session']) : $default_session;
+
+        $where_clauses = [];
+        $query_params = [];
+
+        // Date filter
+        $start_datetime = $filter_date . ' 00:00:00';
+        $end_datetime = $filter_date . ' 23:59:59';
+        $where_clauses[] = "timestamp BETWEEN %s AND %s";
+        $query_params[] = $start_datetime;
+        $query_params[] = $end_datetime;
+
+        // Session filter
+        if ($filter_session !== 'all') {
+            $where_clauses[] = "draw_session = %s";
+            $query_params[] = $filter_session;
+        }
+
+        $where_sql = 'WHERE ' . implode(' AND ', $where_clauses);
+
         $current_page = $this->get_pagenum();
-        $total_items = $wpdb->get_var("SELECT COUNT(id) FROM $table_name");
+
+        // Get total items for pagination
+        $total_items_query = "SELECT COUNT(id) FROM $table_name $where_sql";
+        $total_items = $wpdb->get_var($wpdb->prepare($total_items_query, $query_params));
 
         $this->set_pagination_args([
             'total_items' => $total_items,
@@ -76,12 +112,13 @@ class Lotto_Entries_List_Table extends WP_List_Table {
         ]);
 
         $offset = ($current_page - 1) * $per_page;
+        $query_params[] = $per_page;
+        $query_params[] = $offset;
+
+        $items_query = "SELECT * FROM $table_name $where_sql ORDER BY $orderby $order LIMIT %d OFFSET %d";
         $this->items = $wpdb->get_results(
-            $wpdb->prepare(
-                "SELECT * FROM $table_name ORDER BY $orderby $order LIMIT %d OFFSET %d",
-                $per_page,
-                $offset
-            ), ARRAY_A
+            $wpdb->prepare($items_query, $query_params),
+            ARRAY_A
         );
     }
 
