@@ -61,7 +61,22 @@ class Lotto_Entries_List_Table extends WP_List_Table {
             return '';
         }
 
-        $output = '<ul style="margin: 0; padding-left: 1.5em;">';
+        $entry_count = count($item['entries']);
+        // Use phone number for a unique ID, sanitized for CSS selector.
+        $details_id = 'entries-details-' . sanitize_html_class($item['phone']);
+
+        // Summary and toggle button
+        $output = sprintf(
+            '<p>%d %s &mdash; <a href="#" class="view-entries-details" data-target="#%s">%s</a></p>',
+            $entry_count,
+            _n('entry', 'entries', $entry_count, 'custom-lottery'),
+            esc_attr($details_id),
+            __('View Details', 'custom-lottery')
+        );
+
+        // The collapsible list
+        $output .= sprintf('<ul id="%s" class="entries-details-list" style="margin: 0; padding-left: 1.5em; display: none;">', esc_attr($details_id));
+
         foreach ($item['entries'] as $entry) {
             $delete_nonce = wp_create_nonce('cl_delete_entry_' . $entry['id']);
 
