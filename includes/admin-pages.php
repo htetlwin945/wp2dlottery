@@ -395,6 +395,45 @@ function custom_lottery_all_entries_page_callback() {
     global $wpdb;
     $table_entries = $wpdb->prefix . 'lotto_entries';
     $action = isset($_REQUEST['action']) ? $_REQUEST['action'] : '';
+    $action2 = isset($_REQUEST['action2']) ? $_REQUEST['action2'] : '';
+
+    // Handle bulk delete
+    $bulk_action = ($action === 'bulk-delete' || $action2 === 'bulk-delete') ? 'bulk-delete' : null;
+    if ($bulk_action && isset($_POST['customer_phone']) && check_admin_referer('bulk-customers')) {
+        $phones_to_delete = array_map('sanitize_text_field', $_POST['customer_phone']);
+
+        $timezone = new DateTimeZone('Asia/Yangon');
+        $current_time = new DateTime('now', $timezone);
+        $default_date = $current_time->format('Y-m-d');
+        $filter_date = isset($_GET['filter_date']) && !empty($_GET['filter_date']) ? sanitize_text_field($_GET['filter_date']) : $default_date;
+
+        $time_1201 = new DateTime($current_time->format('Y-m-d') . ' 12:01:00', $timezone);
+        $time_1630 = new DateTime($current_time->format('Y-m-d') . ' 16:30:00', $timezone);
+        $default_session = '12:01 PM';
+        if ($current_time > $time_1201 && $current_time <= $time_1630) {
+            $default_session = '4:30 PM';
+        }
+        $filter_session = isset($_GET['filter_session']) ? sanitize_text_field($_GET['filter_session']) : $default_session;
+
+        $start_datetime = $filter_date . ' 00:00:00';
+        $end_datetime = $filter_date . ' 23:59:59';
+
+        $placeholders = implode(', ', array_fill(0, count($phones_to_delete), '%s'));
+        $query = "DELETE FROM $table_entries WHERE phone IN ($placeholders) AND timestamp BETWEEN %s AND %s";
+        $params = array_merge($phones_to_delete, [$start_datetime, $end_datetime]);
+
+        if ($filter_session !== 'all') {
+            $query .= " AND draw_session = %s";
+            $params[] = $filter_session;
+        }
+
+        $deleted_count = $wpdb->query($wpdb->prepare($query, $params));
+
+        if ($deleted_count > 0) {
+            custom_lottery_log_action('bulk_entries_deleted', ['phones' => $phones_to_delete, 'filter_date' => $filter_date, 'filter_session' => $filter_session, 'count' => $deleted_count]);
+            echo '<div class="updated"><p>' . sprintf(esc_html__('%d entries deleted successfully.', 'custom-lottery'), $deleted_count) . '</p></div>';
+        }
+    }
 
     if (isset($_POST['submit_edit_entry']) && check_admin_referer('cl_edit_entry_action', 'cl_edit_entry_nonce')) {
         $entry_id = absint($_POST['entry_id']);
@@ -416,7 +455,7 @@ function custom_lottery_all_entries_page_callback() {
 
     if ($action === 'delete' && !empty($_GET['entry_id'])) {
         $entry_id = absint($_GET['entry_id']);
-        if (isset($_GET['_wpnonce']) && wp_verify_nonce($_GET['_wpnonce'], 'cl_delete_entry')) {
+        if (isset($_GET['_wpnonce']) && wp_verify_nonce($_GET['_wpnonce'], 'cl_delete_entry_' . $entry_id)) {
             $entry_data = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_entries WHERE id = %d", $entry_id), ARRAY_A);
             if ($wpdb->delete($table_entries, ['id' => $entry_id])) {
                 custom_lottery_log_action('entry_deleted', ['entry_id' => $entry_id, 'deleted_data' => $entry_data]);
