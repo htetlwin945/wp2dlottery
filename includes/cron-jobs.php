@@ -1,0 +1,102 @@
+<?php
+
+// If this file is called directly, abort.
+if ( ! defined( 'WPINC' ) ) {
+    die;
+}
+
+/**
+ * Fetches the winning numbers from the API.
+ */
+function custom_lottery_fetch_winning_numbers() {
+    $api_url = 'https://api.thaistock2d.com/live';
+    $response = wp_remote_get($api_url, ['timeout' => 15]);
+
+    if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
+        // Log the error for debugging, but don't expose details to users.
+        error_log('Lottery Plugin API Error: ' . $response->get_error_message());
+        return;
+    }
+
+    $body = wp_remote_retrieve_body($response);
+    $data = json_decode($body, true);
+
+    if (empty($data['result']) || !is_array($data['result'])) {
+        error_log('Lottery Plugin API Error: Invalid data format received.');
+        return;
+    }
+
+    $timezone = new DateTimeZone('Asia/Yangon');
+    $current_date = new DateTime('now', $timezone);
+    $option_date_key = 'custom_lottery_last_fetch_date';
+    $last_fetch_date = get_option($option_date_key, '');
+
+    if ($last_fetch_date !== $current_date->format('Y-m-d')) {
+        update_option('custom_lottery_fetched_1201', 0);
+        update_option('custom_lottery_fetched_1630', 0);
+        update_option($option_date_key, $current_date->format('Y-m-d'));
+    }
+
+    foreach ($data['result'] as $result) {
+        if ($result['open_time'] === '12:01:00' && !get_option('custom_lottery_fetched_1201')) {
+            $winning_number = sanitize_text_field($result['twod']);
+            update_option('custom_lottery_winning_number_1201', $winning_number);
+            update_option('custom_lottery_fetched_1201', 1);
+            custom_lottery_identify_winners('12:01 PM', $winning_number, $current_date->format('Y-m-d'));
+        }
+        if ($result['open_time'] === '16:30:00' && !get_option('custom_lottery_fetched_1630')) {
+            $winning_number = sanitize_text_field($result['twod']);
+            update_option('custom_lottery_winning_number_1630', $winning_number);
+            update_option('custom_lottery_fetched_1630', 1);
+            custom_lottery_identify_winners('4:30 PM', $winning_number, $current_date->format('Y-m-d'));
+        }
+    }
+}
+
+/**
+ * Identifies and flags winning entries in the database.
+ * This fixes the bug from the previous implementation.
+ */
+function custom_lottery_identify_winners($session, $winning_number, $date) {
+    global $wpdb;
+    $table_entries = $wpdb->prefix . 'lotto_entries';
+
+    $start_datetime = $date . ' 00:00:00';
+    $end_datetime = $date . ' 23:59:59';
+
+    // The WHERE clause is now correctly constructed within the $wpdb->prepare call.
+    $wpdb->query($wpdb->prepare(
+        "UPDATE $table_entries SET is_winner = 1 WHERE lottery_number = %s AND draw_session = %s AND timestamp BETWEEN %s AND %s",
+        $winning_number,
+        $session,
+        $start_datetime,
+        $end_datetime
+    ));
+}
+
+/**
+ * Schedule cron jobs.
+ */
+function custom_lottery_schedule_cron_jobs() {
+    if (!wp_next_scheduled('custom_lottery_fetch_1201')) {
+        $time = new DateTime('12:02:00', new DateTimeZone('Asia/Yangon'));
+        $time->setTimezone(new DateTimeZone('UTC'));
+        wp_schedule_event($time->getTimestamp(), 'daily', 'custom_lottery_fetch_1201');
+    }
+    if (!wp_next_scheduled('custom_lottery_fetch_1630')) {
+        $time = new DateTime('16:32:00', new DateTimeZone('Asia/Yangon'));
+        $time->setTimezone(new DateTimeZone('UTC'));
+        wp_schedule_event($time->getTimestamp(), 'daily', 'custom_lottery_fetch_1630');
+    }
+}
+add_action('init', 'custom_lottery_schedule_cron_jobs');
+add_action('custom_lottery_fetch_1201', 'custom_lottery_fetch_winning_numbers');
+add_action('custom_lottery_fetch_1630', 'custom_lottery_fetch_winning_numbers');
+
+/**
+ * Clear cron jobs on deactivation.
+ */
+function custom_lottery_clear_cron_jobs() {
+    wp_clear_scheduled_hook('custom_lottery_fetch_1201');
+    wp_clear_scheduled_hook('custom_lottery_fetch_1630');
+}

@@ -1,4 +1,28 @@
 jQuery(document).ready(function($) {
+    // Customer search autocomplete for the phone field
+    $('#phone').autocomplete({
+        source: function(request, response) {
+            $.ajax({
+                url: ajaxurl,
+                dataType: "json",
+                data: {
+                    action: 'search_customers',
+                    term: request.term,
+                    lottery_entry_nonce: $('#lottery_entry_nonce').val() // Pass nonce for security
+                },
+                success: function(data) {
+                    response(data);
+                }
+            });
+        },
+        minLength: 2, // Start searching after 2 characters
+        select: function(event, ui) {
+            event.preventDefault(); // Prevent the default action of replacing the value with the 'value' property
+            $('#phone').val(ui.item.value); // Set phone number
+            $('#customer-name').val(ui.item.name); // Set customer name
+        }
+    });
+
     $('#lottery-entry-form').on('submit', function(e) {
         e.preventDefault();
 
