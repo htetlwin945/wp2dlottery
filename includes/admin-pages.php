@@ -475,6 +475,21 @@ function custom_lottery_payouts_page_callback() {
     global $wpdb;
     $table_entries = $wpdb->prefix . 'lotto_entries';
 
+    // Handle manual winner processing
+    if (isset($_POST['manual_process']) && check_admin_referer('manual_process_winners_action', 'manual_process_nonce')) {
+        $winning_number = sanitize_text_field($_POST['winning_number']);
+        $process_date = isset($_GET['payout_date']) ? sanitize_text_field($_GET['payout_date']) : (new DateTime('now', new DateTimeZone('Asia/Yangon')))->format('Y-m-d');
+        $process_session = isset($_GET['draw_session']) ? sanitize_text_field($_GET['draw_session']) : '12:01 PM';
+
+        if (preg_match('/^\d{2}$/', $winning_number)) {
+            custom_lottery_identify_winners($process_session, $winning_number, $process_date);
+            echo '<div class="updated"><p>' . esc_html__('Winners processed successfully for number: ', 'custom-lottery') . esc_html($winning_number) . '</p></div>';
+        } else {
+            echo '<div class="error"><p>' . esc_html__('Invalid winning number format.', 'custom-lottery') . '</p></div>';
+        }
+    }
+
+    // Handle marking an entry as paid
     if (isset($_GET['action']) && $_GET['action'] === 'mark_paid' && isset($_GET['entry_id'])) {
         if (isset($_GET['_wpnonce']) && wp_verify_nonce($_GET['_wpnonce'], 'mark_paid_' . $_GET['entry_id'])) {
             $entry_id = absint($_GET['entry_id']);
@@ -518,6 +533,19 @@ function custom_lottery_payouts_page_callback() {
             </select>
             <button type="submit" class="button"><?php echo esc_html__('View Winners', 'custom-lottery'); ?></button>
         </form>
+
+        <hr>
+        <div style="margin: 20px 0;">
+            <h3><?php echo esc_html__('Manual Winner Processing', 'custom-lottery'); ?></h3>
+            <p><?php echo esc_html__('If the automatic fetch fails or for testing, you can manually trigger the winner identification process here.', 'custom-lottery'); ?></p>
+            <form method="post" action="<?php echo esc_url(admin_url('admin.php?page=custom-lottery-payouts&payout_date=' . $selected_date . '&draw_session=' . $selected_session)); ?>">
+                <?php wp_nonce_field('manual_process_winners_action', 'manual_process_nonce'); ?>
+                <label for="winning-number"><?php echo esc_html__('Winning Number:', 'custom-lottery'); ?></label>
+                <input type="text" id="winning-number" name="winning_number" maxlength="2" pattern="\d{2}" required>
+                <button type="submit" name="manual_process" class="button button-secondary"><?php echo esc_html__('Process Winners', 'custom-lottery'); ?></button>
+            </form>
+        </div>
+        <hr>
 
         <h2><?php printf(esc_html__('Winners for %s session on %s', 'custom-lottery'), esc_html($selected_session), esc_html($selected_date)); ?></h2>
 
