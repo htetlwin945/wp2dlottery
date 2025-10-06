@@ -81,8 +81,67 @@ function custom_lottery_admin_menu() {
         'custom-lottery-all-entries',
         'custom_lottery_all_entries_page_callback'
     );
+
+    add_submenu_page(
+        'custom-lottery-dashboard',
+        __( 'Tools', 'custom-lottery' ),
+        __( 'Tools', 'custom-lottery' ),
+        'manage_options',
+        'custom-lottery-tools',
+        'custom_lottery_tools_page_callback'
+    );
 }
 add_action( 'admin_menu', 'custom_lottery_admin_menu' );
+
+/**
+ * Callback for the Tools page.
+ */
+function custom_lottery_tools_page_callback() {
+    global $wpdb;
+
+    // Handle the data clearing form submission
+    if (isset($_POST['clear_data_submit']) && check_admin_referer('clear_data_action', 'clear_data_nonce')) {
+        $date_to_clear = sanitize_text_field($_POST['clear_data_date']);
+        if (!empty($date_to_clear)) {
+            $start_datetime = $date_to_clear . ' 00:00:00';
+            $end_datetime = $date_to_clear . ' 23:59:59';
+
+            $table_entries = $wpdb->prefix . 'lotto_entries';
+            $table_limits = $wpdb->prefix . 'lotto_limits';
+            $table_audit = $wpdb->prefix . 'lotto_audit_log';
+
+            // Delete entries
+            $wpdb->query($wpdb->prepare("DELETE FROM $table_entries WHERE timestamp BETWEEN %s AND %s", $start_datetime, $end_datetime));
+
+            // Delete limits
+            $wpdb->query($wpdb->prepare("DELETE FROM $table_limits WHERE draw_date = %s", $date_to_clear));
+
+            // Delete audit logs
+            $wpdb->query($wpdb->prepare("DELETE FROM $table_audit WHERE timestamp BETWEEN %s AND %s", $start_datetime, $end_datetime));
+
+            echo '<div class="updated"><p>' . esc_html__('All data for the selected date has been cleared.', 'custom-lottery') . '</p></div>';
+        } else {
+            echo '<div class="error"><p>' . esc_html__('Please select a date to clear.', 'custom-lottery') . '</p></div>';
+        }
+    }
+    ?>
+    <div class="wrap">
+        <h1><?php echo esc_html__('Lottery Tools', 'custom-lottery'); ?></h1>
+        <div class="card">
+            <h2 style="color: red;"><?php echo esc_html__('Clear Data by Date (Destructive Action)', 'custom-lottery'); ?></h2>
+            <p><?php echo esc_html__('This tool will permanently delete all lottery entries, limits, and audit logs for the selected date. This action cannot be undone.', 'custom-lottery'); ?></p>
+            <form method="post">
+                <?php wp_nonce_field('clear_data_action', 'clear_data_nonce'); ?>
+                <label for="clear-data-date"><?php echo esc_html__('Select Date:', 'custom-lottery'); ?></label>
+                <input type="date" id="clear-data-date" name="clear_data_date" required>
+                <button type="submit" name="clear_data_submit" class="button button-danger" onclick="return confirm('<?php echo esc_js(__('Are you sure you want to permanently delete all data for the selected date? This cannot be undone.', 'custom-lottery')); ?>');">
+                    <?php echo esc_html__('Clear All Data for Selected Date', 'custom-lottery'); ?>
+                </button>
+            </form>
+        </div>
+    </div>
+    <?php
+}
 
 /**
  * Callback function for the Dashboard page.
