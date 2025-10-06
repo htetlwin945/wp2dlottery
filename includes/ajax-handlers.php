@@ -106,10 +106,15 @@ add_action('wp_ajax_search_customers', 'custom_lottery_search_customers_callback
 
 
 /**
- * AJAX handler for adding a new lottery entry.
+ * AJAX handler for adding new lottery entries.
  */
 function add_lottery_entry_callback() {
-    check_ajax_referer('lottery_entry_action', 'lottery_entry_nonce');
+    $data = json_decode(file_get_contents('php://input'), true);
+
+    if ( ! isset( $data['lottery_entry_nonce'] ) || ! wp_verify_nonce( $data['lottery_entry_nonce'], 'lottery_entry_action' ) ) {
+        wp_send_json_error( 'Nonce verification failed.' );
+        return;
+    }
 
     global $wpdb;
     $table_entries = $wpdb->prefix . 'lotto_entries';
@@ -119,69 +124,94 @@ function add_lottery_entry_callback() {
     $current_datetime = new DateTime('now', $timezone);
     $current_date = $current_datetime->format('Y-m-d');
 
-    $customer_name = sanitize_text_field($_POST['customer_name']);
-    $phone = sanitize_text_field($_POST['phone']);
-    $lottery_number = sanitize_text_field($_POST['lottery_number']);
-    $amount = absint($_POST['amount']);
-    $draw_session = sanitize_text_field($_POST['draw_session']);
-    $is_reverse = isset($_POST['reverse_entry']) && $_POST['reverse_entry'] == '1';
+    $customer_name = sanitize_text_field($data['customer_name']);
+    $phone = sanitize_text_field($data['phone']);
+    $draw_session = sanitize_text_field($data['draw_session']);
+    $entries = isset($data['entries']) ? $data['entries'] : [];
 
-    if (empty($customer_name) || empty($phone) || !preg_match('/^\d{2}$/', $lottery_number) || empty($amount) || empty($draw_session)) {
-        wp_send_json_error('All fields are required and must be in the correct format.');
+    if (empty($customer_name) || empty($phone) || empty($draw_session) || empty($entries)) {
+        wp_send_json_error('Customer details, session, and at least one entry are required.');
         return;
     }
 
     custom_lottery_update_or_create_customer($customer_name, $phone);
 
-    $is_blocked = $wpdb->get_var($wpdb->prepare(
-        "SELECT id FROM $table_limits WHERE lottery_number = %s AND draw_date = %s AND draw_session = %s",
-        $lottery_number, $current_date, $draw_session
-    ));
+    $success_messages = [];
+    $error_messages = [];
 
-    if ($is_blocked) {
-        wp_send_json_error("Number {$lottery_number} is currently blocked for this session.");
-        return;
-    }
+    foreach ($entries as $entry) {
+        $lottery_number = sanitize_text_field($entry['number']);
+        $amount = absint($entry['amount']);
+        $is_reverse = filter_var($entry['isReverse'], FILTER_VALIDATE_BOOLEAN);
 
-    $wpdb->insert($table_entries, [
-        'customer_name' => $customer_name,
-        'phone' => $phone,
-        'lottery_number' => $lottery_number,
-        'amount' => $amount,
-        'draw_session' => $draw_session,
-        'timestamp' => $current_datetime->format('Y-m-d H:i:s'),
-    ]);
+        if (!preg_match('/^\d{2}$/', $lottery_number) || empty($amount)) {
+            $error_messages[] = "Invalid data for entry {$lottery_number}.";
+            continue;
+        }
 
-    check_and_auto_block_number($lottery_number, $draw_session, $current_date);
-    $message = "Entry for {$lottery_number} added successfully.";
+        // Check if main number is blocked
+        $is_blocked = $wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM $table_limits WHERE lottery_number = %s AND draw_date = %s AND draw_session = %s",
+            $lottery_number, $current_date, $draw_session
+        ));
 
-    if ($is_reverse) {
-        $reversed_number = strrev($lottery_number);
-        if ($lottery_number !== $reversed_number) {
-            $is_rev_blocked = $wpdb->get_var($wpdb->prepare(
-                "SELECT id FROM $table_limits WHERE lottery_number = %s AND draw_date = %s AND draw_session = %s",
-                $reversed_number, $current_date, $draw_session
-            ));
+        if ($is_blocked) {
+            $error_messages[] = "Number {$lottery_number} is blocked.";
+            continue;
+        }
 
-            if ($is_rev_blocked) {
-                wp_send_json_error("Cannot add reversed entry: Number {$reversed_number} is currently blocked for this session.");
-                return;
+        // Insert main number
+        $wpdb->insert($table_entries, [
+            'customer_name' => $customer_name,
+            'phone' => $phone,
+            'lottery_number' => $lottery_number,
+            'amount' => $amount,
+            'draw_session' => $draw_session,
+            'timestamp' => $current_datetime->format('Y-m-d H:i:s'),
+        ]);
+        check_and_auto_block_number($lottery_number, $draw_session, $current_date);
+        $success_messages[] = "Entry for {$lottery_number} added.";
+
+        // Handle reverse entry
+        if ($is_reverse) {
+            $reversed_number = strrev($lottery_number);
+            if ($lottery_number !== $reversed_number) {
+                // Check if reversed number is blocked
+                $is_rev_blocked = $wpdb->get_var($wpdb->prepare(
+                    "SELECT id FROM $table_limits WHERE lottery_number = %s AND draw_date = %s AND draw_session = %s",
+                    $reversed_number, $current_date, $draw_session
+                ));
+
+                if ($is_rev_blocked) {
+                    $error_messages[] = "Reversed number {$reversed_number} is blocked.";
+                    continue;
+                }
+
+                // Insert reversed number
+                $wpdb->insert($table_entries, [
+                    'customer_name' => $customer_name,
+                    'phone' => $phone,
+                    'lottery_number' => $reversed_number,
+                    'amount' => $amount,
+                    'draw_session' => $draw_session,
+                    'timestamp' => $current_datetime->format('Y-m-d H:i:s'),
+                ]);
+                check_and_auto_block_number($reversed_number, $draw_session, $current_date);
+                $success_messages[] = "Reversed entry for {$reversed_number} added.";
             }
-
-            $wpdb->insert($table_entries, [
-                'customer_name' => $customer_name,
-                'phone' => $phone,
-                'lottery_number' => $reversed_number,
-                'amount' => $amount,
-                'draw_session' => $draw_session,
-                'timestamp' => $current_datetime->format('Y-m-d H:i:s'),
-            ]);
-            check_and_auto_block_number($reversed_number, $draw_session, $current_date);
-            $message .= " Reversed entry for {$reversed_number} also added.";
         }
     }
 
-    wp_send_json_success($message);
+    $final_message = '';
+    if (!empty($success_messages)) {
+        $final_message .= 'Success: ' . count($success_messages) . ' entries added. ';
+    }
+    if (!empty($error_messages)) {
+        $final_message .= 'Errors: ' . implode(' ', $error_messages);
+        wp_send_json_error($final_message);
+    } else {
+        wp_send_json_success('All entries added successfully.');
+    }
 }
 add_action('wp_ajax_add_lottery_entry', 'add_lottery_entry_callback');
 

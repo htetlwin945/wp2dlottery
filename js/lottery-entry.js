@@ -25,6 +25,21 @@ jQuery(document).ready(function($) {
 
     var lastTransaction = null;
 
+    // Add new entry row
+    $('#add-entry-row').on('click', function() {
+        var newRow = $('#lottery-entries-container .entry-row:first').clone();
+        newRow.find('input').val('');
+        newRow.find('input[type="checkbox"]').prop('checked', false);
+        newRow.find('.remove-entry-row').show();
+        $('#lottery-entries-container').append(newRow);
+    });
+
+    // Remove entry row
+    $('#lottery-entries-container').on('click', '.remove-entry-row', function() {
+        $(this).closest('.entry-row').remove();
+    });
+
+
     $('#lottery-entry-form').on('submit', function(e) {
         e.preventDefault();
 
@@ -33,22 +48,47 @@ jQuery(document).ready(function($) {
         var submitButton = form.find('button[type="submit"]');
         var printButton = $('#print-receipt-button');
 
-        // Hide previous receipt button
         printButton.hide();
+        var entries = [];
+        var isValid = true;
+        $('.entry-row').each(function() {
+            var numberInput = $(this).find('input[name="lottery_number[]"]');
+            var amountInput = $(this).find('input[name="amount[]"]');
+            var number = numberInput.val();
+            var amount = amountInput.val();
+            var isReverse = $(this).find('input[name="reverse_entry[]"]').is(':checked');
 
-        // Basic validation
-        var lotteryNumber = $('#lottery-number').val();
-        if (!/^\d{2}$/.test(lotteryNumber)) {
-            responseDiv.html('<div class="error"><p>Please enter a valid 2-digit number.</p></div>');
+            if (!/^\d{2}$/.test(number) || !amount || parseInt(amount) <= 0) {
+                isValid = false;
+                return false; // Break the loop
+            }
+
+            entries.push({
+                number: number,
+                amount: amount,
+                isReverse: isReverse
+            });
+        });
+
+        if (!isValid) {
+            responseDiv.html('<div class="error"><p>Please ensure all entries have a valid 2-digit number and a positive amount.</p></div>');
             return;
         }
 
-        var data = form.serialize();
+        var data = {
+            action: 'add_lottery_entry',
+            lottery_entry_nonce: $('#lottery_entry_nonce').val(),
+            customer_name: $('#customer-name').val(),
+            phone: $('#phone').val(),
+            draw_session: $('#draw-session').val(),
+            entries: entries
+        };
 
         $.ajax({
             type: 'POST',
-            url: ajaxurl, // ajaxurl is a global variable in WordPress admin
-            data: data + '&action=add_lottery_entry',
+            url: ajaxurl,
+            data: JSON.stringify(data),
+            contentType: 'application/json',
             beforeSend: function() {
                 submitButton.prop('disabled', true);
                 responseDiv.html('<p>Submitting...</p>');
@@ -56,21 +96,22 @@ jQuery(document).ready(function($) {
             success: function(response) {
                 if (response.success) {
                     responseDiv.html('<div class="updated"><p>' + response.data + '</p></div>');
-
-                    // Store transaction for receipt
                     lastTransaction = {
-                        customerName: form.find('#customer-name').val(),
-                        phone: form.find('#phone').val(),
-                        number: form.find('#lottery-number').val(),
-                        amount: form.find('#amount').val(),
-                        isReverse: form.find('#reverse-entry').is(':checked'),
-                        session: form.find('#draw-session').val(),
+                        customerName: data.customer_name,
+                        phone: data.phone,
+                        session: data.draw_session,
+                        entries: entries,
                         date: new Date().toLocaleString('en-US', { timeZone: 'Asia/Yangon' })
                     };
+                    printButton.show();
 
-                    printButton.show(); // Show the print button
+                    // Reset form to initial state
+                    $('.entry-row:not(:first)').remove();
                     form[0].reset();
-                    $('#lottery-number').focus();
+                    $('.entry-row:first').find('input').val('');
+                    $('.entry-row:first').find('input[type="checkbox"]').prop('checked', false);
+                    $('.entry-row:first input[name="lottery_number[]"]').focus();
+
                 } else {
                     responseDiv.html('<div class="error"><p>' + response.data + '</p></div>');
                     printButton.hide();
@@ -110,25 +151,31 @@ jQuery(document).ready(function($) {
                     <p><strong>Phone:</strong> ${lastTransaction.phone}</p>
                     <p><strong>Session:</strong> ${lastTransaction.session}</p>
                     <hr>
-                    <div class="item">
-                        <span>${lastTransaction.number}</span>
-                        <span>${lastTransaction.amount} Ks</span>
-                    </div>
         `;
 
-        var totalAmount = parseInt(lastTransaction.amount);
-        if (lastTransaction.isReverse) {
-            var reversedNumber = lastTransaction.number.split('').reverse().join('');
-            if (lastTransaction.number !== reversedNumber) {
-                receiptContent += `
-                    <div class="item">
-                        <span>${reversedNumber} (R)</span>
-                        <span>${lastTransaction.amount} Ks</span>
-                    </div>
-                `;
-                totalAmount += parseInt(lastTransaction.amount);
+        var totalAmount = 0;
+        lastTransaction.entries.forEach(function(entry) {
+            receiptContent += `
+                <div class="item">
+                    <span>${entry.number}</span>
+                    <span>${entry.amount} Ks</span>
+                </div>
+            `;
+            totalAmount += parseInt(entry.amount);
+
+            if (entry.isReverse) {
+                var reversedNumber = entry.number.split('').reverse().join('');
+                if (entry.number !== reversedNumber) {
+                    receiptContent += `
+                        <div class="item">
+                            <span>${reversedNumber} (R)</span>
+                            <span>${entry.amount} Ks</span>
+                        </div>
+                    `;
+                    totalAmount += parseInt(entry.amount);
+                }
             }
-        }
+        });
 
         receiptContent += `
                     <hr>

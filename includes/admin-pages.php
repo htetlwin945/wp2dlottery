@@ -573,16 +573,18 @@ function custom_lottery_entry_page_callback() {
                         <td><input type="text" id="phone" name="phone" class="regular-text" required></td>
                     </tr>
                     <tr>
-                        <th scope="row"><label for="lottery-number"><?php echo esc_html__( 'Lottery Number', 'custom-lottery' ); ?></label></th>
-                        <td><input type="text" id="lottery-number" name="lottery_number" maxlength="2" pattern="\d{2}" class="small-text" required></td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><label for="amount"><?php echo esc_html__( 'Amount (Kyat)', 'custom-lottery' ); ?></label></th>
-                        <td><input type="number" id="amount" name="amount" class="small-text" step="100" min="0" required></td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><label for="reverse-entry"><?php echo esc_html__( 'Reverse ("R")', 'custom-lottery' ); ?></label></th>
-                        <td><input type="checkbox" id="reverse-entry" name="reverse_entry" value="1"></td>
+                        <th scope="row"><?php echo esc_html__( 'Lottery Numbers', 'custom-lottery' ); ?></th>
+                        <td>
+                            <div id="lottery-entries-container">
+                                <div class="entry-row">
+                                    <input type="text" name="lottery_number[]" placeholder="Number" maxlength="2" pattern="\d{2}" class="small-text" required>
+                                    <input type="number" name="amount[]" placeholder="Amount" class="small-text" step="100" min="0" required>
+                                    <label><input type="checkbox" name="reverse_entry[]" value="1"> R</label>
+                                    <button type="button" class="button remove-entry-row" style="display:none;">Remove</button>
+                                </div>
+                            </div>
+                            <button type="button" id="add-entry-row" class="button" style="margin-top: 10px;"><?php echo esc_html__( 'Add Another Number', 'custom-lottery' ); ?></button>
+                        </td>
                     </tr>
                     <tr>
                         <th scope="row"><label for="draw-session"><?php echo esc_html__( 'Draw Session', 'custom-lottery' ); ?></label></th>
