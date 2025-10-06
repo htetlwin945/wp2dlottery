@@ -32,7 +32,7 @@ function custom_lottery_admin_menu() {
         'custom-lottery-dashboard',
         __( 'Lottery Entry', 'custom-lottery' ),
         __( 'Lottery Entry', 'custom-lottery' ),
-        'manage_options',
+        'enter_lottery_numbers', // Use custom capability
         'custom-lottery-entry',
         'custom_lottery_entry_page_callback'
     );
@@ -370,6 +370,19 @@ function custom_lottery_entry_page_callback() {
             </p>
         </form>
         <div id="form-response"></div>
+        <button id="print-receipt-button" class="button" style="display: none; margin-top: 10px;"><?php echo esc_html__( 'Print Last Receipt', 'custom-lottery' ); ?></button>
+
+        <hr style="margin-top: 40px;">
+
+        <h2><?php echo esc_html__( 'Quick Entry Mode (Bulk Import)', 'custom-lottery' ); ?></h2>
+        <p><?php echo esc_html__( 'Enter multiple bets at once. Format: Number-Amount, Number R-Amount (e.g., 23-1000, 45 R-500, 81-2000)', 'custom-lottery' ); ?></p>
+        <form id="lottery-bulk-entry-form">
+            <textarea id="bulk-entry-data" rows="10" cols="50" placeholder="23-1000, 45 R-500, 81-2000"></textarea>
+            <p class="submit">
+                <button type="submit" class="button button-primary"><?php echo esc_html__( 'Add Bulk Entries', 'custom-lottery' ); ?></button>
+            </p>
+        </form>
+        <div id="bulk-form-response"></div>
     </div>
     <?php
 }

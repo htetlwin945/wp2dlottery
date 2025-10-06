@@ -28,12 +28,16 @@ require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/admin-pages.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/ajax-handlers.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/cron-jobs.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/utils.php' );
+require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/user-roles.php' );
+require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/shortcodes.php' );
 
 /**
  * Register activation and deactivation hooks.
  */
 register_activation_hook( __FILE__, 'activate_custom_lottery_plugin' );
+register_activation_hook( __FILE__, 'custom_lottery_add_roles' );
 register_deactivation_hook( __FILE__, 'custom_lottery_clear_cron_jobs' );
+register_deactivation_hook( __FILE__, 'custom_lottery_remove_roles' );
 
 /**
  * Enqueue scripts and styles for the admin pages.
@@ -69,3 +73,27 @@ function custom_lottery_enqueue_scripts($hook) {
     }
 }
 add_action('admin_enqueue_scripts', 'custom_lottery_enqueue_scripts');
+
+/**
+ * Enqueue scripts for the frontend portal.
+ */
+function custom_lottery_frontend_scripts() {
+    // Only load the script if the shortcode is present on the page
+    if (is_singular() && has_shortcode(get_post()->post_content, 'lottery_portal')) {
+        wp_enqueue_script(
+            'lottery-portal-js',
+            CUSTOM_LOTTERY_PLUGIN_URL . 'js/lottery-portal.js',
+            ['jquery'],
+            '1.0.0',
+            true
+        );
+
+        // Pass the AJAX URL to the script
+        wp_localize_script(
+            'lottery-portal-js',
+            'lottery_portal_ajax',
+            ['ajax_url' => admin_url('admin-ajax.php')]
+        );
+    }
+}
+add_action('wp_enqueue_scripts', 'custom_lottery_frontend_scripts');
