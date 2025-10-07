@@ -558,61 +558,80 @@ function custom_lottery_entry_page_callback() {
         $default_session = '4:30 PM';
     }
     ?>
+    <style>
+        .lottery-entry-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 250px; }
+        .lottery-entry-grid button { padding: 20px; font-size: 1.5em; text-align: center; cursor: pointer; }
+        .lottery-entry-grid button.selected { background-color: #4CAF50; color: white; }
+        .selected-numbers-list { border: 1px solid #ccc; padding: 10px; min-height: 150px; max-width: 300px; background-color: #fff; }
+        .selected-numbers-list .entry { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #eee; }
+        .selected-numbers-list .entry:last-child { border-bottom: none; }
+        .entry-remove { cursor: pointer; color: red; font-weight: bold; }
+        .entry-container { display: flex; gap: 30px; align-items: flex-start; }
+    </style>
     <div class="wrap">
-        <h1><?php echo esc_html__( 'Lottery Entry', 'custom-lottery' ); ?></h1>
+        <h1><?php echo esc_html__('Add Entry Flow UI', 'custom-lottery'); ?></h1>
         <form id="lottery-entry-form" method="post">
-            <?php wp_nonce_field( 'lottery_entry_action', 'lottery_entry_nonce' ); ?>
+            <?php wp_nonce_field('lottery_entry_action', 'lottery_entry_nonce'); ?>
+
             <table class="form-table">
                 <tbody>
                     <tr>
-                        <th scope="row"><label for="customer-name"><?php echo esc_html__( 'Customer Name', 'custom-lottery' ); ?></label></th>
+                        <th scope="row"><label for="customer-name"><?php echo esc_html__('Customer Name', 'custom-lottery'); ?></label></th>
                         <td><input type="text" id="customer-name" name="customer_name" class="regular-text" required></td>
                     </tr>
                     <tr>
-                        <th scope="row"><label for="phone"><?php echo esc_html__( 'Phone', 'custom-lottery' ); ?></label></th>
+                        <th scope="row"><label for="phone"><?php echo esc_html__('Phone Number', 'custom-lottery'); ?></label></th>
                         <td><input type="text" id="phone" name="phone" class="regular-text" required></td>
                     </tr>
                     <tr>
-                        <th scope="row"><label for="lottery-number"><?php echo esc_html__( 'Lottery Number', 'custom-lottery' ); ?></label></th>
-                        <td><input type="text" id="lottery-number" name="lottery_number" maxlength="2" pattern="\d{2}" class="small-text" required></td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><label for="amount"><?php echo esc_html__( 'Amount (Kyat)', 'custom-lottery' ); ?></label></th>
-                        <td><input type="number" id="amount" name="amount" class="small-text" step="100" min="0" required></td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><label for="reverse-entry"><?php echo esc_html__( 'Reverse ("R")', 'custom-lottery' ); ?></label></th>
-                        <td><input type="checkbox" id="reverse-entry" name="reverse_entry" value="1"></td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><label for="draw-session"><?php echo esc_html__( 'Draw Session', 'custom-lottery' ); ?></label></th>
+                        <th scope="row"><?php echo esc_html__('Section', 'custom-lottery'); ?></th>
                         <td>
                             <select id="draw-session" name="draw_session">
-                                <option value="12:01 PM" <?php selected( $default_session, '12:01 PM' ); ?>>12:01 PM</option>
-                                <option value="4:30 PM" <?php selected( $default_session, '4:30 PM' ); ?>>4:30 PM</option>
+                                <option value="12:01 PM" <?php selected($default_session, '12:01 PM'); ?>>12:01 PM</option>
+                                <option value="4:30 PM" <?php selected($default_session, '4:30 PM'); ?>>4:30 PM</option>
                             </select>
                         </td>
                     </tr>
                 </tbody>
             </table>
-            <p class="submit">
-                <button type="submit" class="button button-primary"><?php echo esc_html__( 'Add Entry', 'custom-lottery' ); ?></button>
+
+            <div class="entry-container">
+                <div class="lottery-entry-grid">
+                    <?php for ($i = 7; $i >= 1; $i -= 3) : ?>
+                        <button type="button" class="number-btn"><?php echo $i; ?></button>
+                        <button type="button" class="number-btn"><?php echo $i + 1; ?></button>
+                        <button type="button" class="number-btn"><?php echo $i + 2; ?></button>
+                    <?php endfor; ?>
+                     <button type="button" class="number-btn">1</button>
+                    <button type="button" class="number-btn">2</button>
+                    <button type="button" class="number-btn">3</button>
+                    <button type="button" class="reverse-btn">R</button>
+                    <button type="button" class="number-btn">0</button>
+                    <button type="button" class="add-btn">+</button>
+                </div>
+
+                <div>
+                    <label for="amount"><?php echo esc_html__('Amount', 'custom-lottery'); ?></label><br>
+                    <input type="number" id="amount" name="amount" class="regular-text"><br><br>
+
+                    <label for="r-amount"><?php echo esc_html__('R Amount (optional)', 'custom-lottery'); ?></label><br>
+                    <input type="number" id="r-amount" name="r_amount" class="regular-text" disabled>
+                </div>
+
+                <div>
+                    <h3><?php echo esc_html__('Selected Numbers', 'custom-lottery'); ?></h3>
+                    <div id="selected-numbers" class="selected-numbers-list">
+                        <!-- Entries will be added here via JS -->
+                    </div>
+                </div>
+            </div>
+
+            <p class="submit" style="margin-top: 20px;">
+                <button type="submit" id="save-entry" class="button button-primary"><?php echo esc_html__('Save Entry', 'custom-lottery'); ?></button>
+                <button type="button" id="print-receipt-button" class="button"><?php echo esc_html__('Print Receipt', 'custom-lottery'); ?></button>
             </p>
         </form>
         <div id="form-response"></div>
-        <button id="print-receipt-button" class="button" style="display: none; margin-top: 10px;"><?php echo esc_html__( 'Print Last Receipt', 'custom-lottery' ); ?></button>
-
-        <hr style="margin-top: 40px;">
-
-        <h2><?php echo esc_html__( 'Quick Entry Mode (Bulk Import)', 'custom-lottery' ); ?></h2>
-        <p><?php echo esc_html__( 'Enter multiple bets at once. Format: Number-Amount, Number R-Amount (e.g., 23-1000, 45 R-500, 81-2000)', 'custom-lottery' ); ?></p>
-        <form id="lottery-bulk-entry-form">
-            <textarea id="bulk-entry-data" rows="10" cols="50" placeholder="23-1000, 45 R-500, 81-2000"></textarea>
-            <p class="submit">
-                <button type="submit" class="button button-primary"><?php echo esc_html__( 'Add Bulk Entries', 'custom-lottery' ); ?></button>
-            </p>
-        </form>
-        <div id="bulk-form-response"></div>
     </div>
     <?php
 }
