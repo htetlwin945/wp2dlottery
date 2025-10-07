@@ -110,16 +110,8 @@ add_action('wp_ajax_search_customers', 'custom_lottery_search_customers_callback
  * Handles a JSON payload with multiple entries.
  */
 function add_lottery_entry_json_callback() {
-    // Get the raw POST data and decode it
-    $payload = json_decode(file_get_contents('php://input'), true);
-
-    if (!$payload) {
-        wp_send_json_error('Invalid request format or empty payload.');
-        return;
-    }
-
-    // Verify the nonce from the payload
-    if (!isset($payload['lottery_entry_nonce']) || !wp_verify_nonce($payload['lottery_entry_nonce'], 'lottery_entry_action')) {
+    // Check the nonce from the standard POST data
+    if (!isset($_POST['lottery_entry_nonce']) || !wp_verify_nonce($_POST['lottery_entry_nonce'], 'lottery_entry_action')) {
         wp_send_json_error('Security check failed.');
         return;
     }
@@ -132,13 +124,16 @@ function add_lottery_entry_json_callback() {
     $current_datetime = new DateTime('now', $timezone);
     $current_date = $current_datetime->format('Y-m-d');
 
-    // Sanitize top-level data from the payload
-    $customer_name = sanitize_text_field($payload['customer_name']);
-    $phone = sanitize_text_field($payload['phone']);
-    $draw_session = sanitize_text_field($payload['draw_session']);
-    $entries = isset($payload['entries']) && is_array($payload['entries']) ? $payload['entries'] : [];
+    // Sanitize top-level data from the $_POST array
+    $customer_name = sanitize_text_field($_POST['customer_name']);
+    $phone = sanitize_text_field($_POST['phone']);
+    $draw_session = sanitize_text_field($_POST['draw_session']);
 
-    if (empty($customer_name) || empty($phone) || empty($draw_session) || empty($entries)) {
+    // Decode the JSON string of entries
+    $entries_json = stripslashes($_POST['entries']);
+    $entries = json_decode($entries_json, true);
+
+    if (empty($customer_name) || empty($phone) || empty($draw_session) || !is_array($entries) || empty($entries)) {
         wp_send_json_error('Customer details, session, and at least one entry are required.');
         return;
     }

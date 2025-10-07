@@ -597,14 +597,14 @@ function custom_lottery_entry_page_callback() {
 
             <div class="entry-container">
                 <div class="lottery-entry-grid">
-                    <?php for ($i = 7; $i >= 1; $i -= 3) : ?>
-                        <button type="button" class="number-btn"><?php echo $i; ?></button>
-                        <button type="button" class="number-btn"><?php echo $i + 1; ?></button>
-                        <button type="button" class="number-btn"><?php echo $i + 2; ?></button>
-                    <?php endfor; ?>
-                     <button type="button" class="number-btn">1</button>
-                    <button type="button" class="number-btn">2</button>
-                    <button type="button" class="number-btn">3</button>
+                    <?php
+                    // This loop generates buttons for 7,8,9 -> 4,5,6 -> 1,2,3
+                    for ($i = 7; $i >= 1; $i -= 3) {
+                        echo '<button type="button" class="number-btn">' . ($i) . '</button>';
+                        echo '<button type="button" class="number-btn">' . ($i + 1) . '</button>';
+                        echo '<button type="button" class="number-btn">' . ($i + 2) . '</button>';
+                    }
+                    ?>
                     <button type="button" class="reverse-btn">R</button>
                     <button type="button" class="number-btn">0</button>
                     <button type="button" class="add-btn">+</button>

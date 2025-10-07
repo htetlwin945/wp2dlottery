@@ -146,18 +146,18 @@ jQuery(document).ready(function($) {
 
         const submitButton = $('#save-entry');
         const data = {
+            action: 'add_lottery_entry_json', // Action for WordPress AJAX routing
             customer_name: $('#customer-name').val(),
             phone: $('#phone').val(),
             draw_session: $('#draw-session').val(),
-            entries: entries,
+            entries: JSON.stringify(entries), // Stringify the array of entries
             lottery_entry_nonce: $('#lottery_entry_nonce').val()
         };
 
         $.ajax({
             type: 'POST',
-            url: ajaxurl + '?action=add_lottery_entry_json', // Pass action in the URL for routing
-            contentType: 'application/json',
-            data: JSON.stringify(data), // Send the data object directly as the payload
+            url: ajaxurl, // Standard WordPress AJAX URL
+            data: data, // Send as form data
             beforeSend: function() {
                 submitButton.prop('disabled', true);
                 responseDiv.html('<p>Submitting...</p>');
