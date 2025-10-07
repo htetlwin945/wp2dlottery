@@ -155,12 +155,9 @@ jQuery(document).ready(function($) {
 
         $.ajax({
             type: 'POST',
-            url: ajaxurl,
+            url: ajaxurl + '?action=add_lottery_entry_json', // Pass action in the URL for routing
             contentType: 'application/json',
-            data: JSON.stringify({
-                action: 'add_lottery_entry_json',
-                payload: data
-            }),
+            data: JSON.stringify(data), // Send the data object directly as the payload
             beforeSend: function() {
                 submitButton.prop('disabled', true);
                 responseDiv.html('<p>Submitting...</p>');

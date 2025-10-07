@@ -110,12 +110,11 @@ add_action('wp_ajax_search_customers', 'custom_lottery_search_customers_callback
  * Handles a JSON payload with multiple entries.
  */
 function add_lottery_entry_json_callback() {
-    // Get the raw POST data
-    $json_data = json_decode(file_get_contents('php://input'), true);
-    $payload = isset($json_data['payload']) ? $json_data['payload'] : null;
+    // Get the raw POST data and decode it
+    $payload = json_decode(file_get_contents('php://input'), true);
 
     if (!$payload) {
-        wp_send_json_error('Invalid request format.');
+        wp_send_json_error('Invalid request format or empty payload.');
         return;
     }
 
@@ -133,7 +132,7 @@ function add_lottery_entry_json_callback() {
     $current_datetime = new DateTime('now', $timezone);
     $current_date = $current_datetime->format('Y-m-d');
 
-    // Sanitize top-level data
+    // Sanitize top-level data from the payload
     $customer_name = sanitize_text_field($payload['customer_name']);
     $phone = sanitize_text_field($payload['phone']);
     $draw_session = sanitize_text_field($payload['draw_session']);
