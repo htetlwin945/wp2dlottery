@@ -135,12 +135,7 @@ class Lotto_Entries_List_Table extends WP_List_Table {
         $current_time = new DateTime('now', $timezone);
         $default_date = $current_time->format('Y-m-d');
 
-        $time_1201 = new DateTime($current_time->format('Y-m-d') . ' 12:01:00', $timezone);
-        $time_1630 = new DateTime($current_time->format('Y-m-d') . ' 16:30:00', $timezone);
-        $default_session = '12:01 PM';
-        if ($current_time > $time_1201 && $current_time <= $time_1630) {
-            $default_session = '4:30 PM';
-        }
+        $default_session = custom_lottery_get_current_session() ?? '12:01 PM';
 
         $filter_date = isset($_GET['filter_date']) && !empty($_GET['filter_date']) ? sanitize_text_field($_GET['filter_date']) : $default_date;
         $filter_session = isset($_GET['filter_session']) ? sanitize_text_field($_GET['filter_session']) : $default_session;

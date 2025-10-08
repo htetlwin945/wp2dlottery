@@ -39,29 +39,24 @@ function custom_lottery_update_or_create_customer($name, $phone) {
 }
 
 /**
- * Checks if a number's potential payout exceeds total sales and blocks it if necessary.
+ * Checks if a number's total purchased amount exceeds the custom limit and blocks it if necessary.
  */
 function check_and_auto_block_number($number, $session, $date) {
     global $wpdb;
     $table_entries = $wpdb->prefix . 'lotto_entries';
     $table_limits = $wpdb->prefix . 'lotto_limits';
 
+    $limit_amount = get_option('custom_lottery_number_limit', 5000);
+
     $start_datetime = $date . ' 00:00:00';
     $end_datetime = $date . ' 23:59:59';
-
-    $total_sales = $wpdb->get_var($wpdb->prepare(
-        "SELECT SUM(amount) FROM $table_entries WHERE draw_session = %s AND timestamp BETWEEN %s AND %s",
-        $session, $start_datetime, $end_datetime
-    ));
 
     $number_total_amount = $wpdb->get_var($wpdb->prepare(
         "SELECT SUM(amount) FROM $table_entries WHERE lottery_number = %s AND draw_session = %s AND timestamp BETWEEN %s AND %s",
         $number, $session, $start_datetime, $end_datetime
     ));
 
-    $potential_payout = $number_total_amount * 80;
-
-    if ($potential_payout > $total_sales) {
+    if ($number_total_amount >= $limit_amount) {
         $is_already_blocked = $wpdb->get_var($wpdb->prepare(
             "SELECT id FROM $table_limits WHERE lottery_number = %s AND draw_date = %s AND draw_session = %s",
             $number, $date, $session
@@ -70,12 +65,28 @@ function check_and_auto_block_number($number, $session, $date) {
         if (!$is_already_blocked) {
             $wpdb->insert($table_limits, [
                 'lottery_number' => $number,
-                'draw_date' => $date,
-                'draw_session' => $session,
-                'limit_type' => 'auto'
+                'draw_date'      => $date,
+                'draw_session'   => $session,
+                'limit_type'     => 'auto'
             ]);
         }
     }
+}
+
+/**
+ * Retrieves the configured session times with defaults.
+ *
+ * @return array Associative array of session times.
+ */
+function custom_lottery_get_session_times() {
+    $defaults = [
+        'morning_open'  => '09:30',
+        'morning_close' => '12:00',
+        'evening_open'  => '14:00',
+        'evening_close' => '16:30',
+    ];
+    $session_times = get_option('custom_lottery_session_times', $defaults);
+    return wp_parse_args($session_times, $defaults);
 }
 
 /**
@@ -84,14 +95,16 @@ function check_and_auto_block_number($number, $session, $date) {
  * @return string|null The current session ('12:01 PM' or '4:30 PM') or null if no session is active.
  */
 function custom_lottery_get_current_session() {
+    $session_times = custom_lottery_get_session_times();
     $timezone = new DateTimeZone('Asia/Yangon');
     $current_time = new DateTime('now', $timezone);
-    $time_1201 = new DateTime($current_time->format('Y-m-d') . ' 12:01:00', $timezone);
-    $time_1630 = new DateTime($current_time->format('Y-m-d') . ' 16:30:00', $timezone);
 
-    if ($current_time <= $time_1201) {
+    $morning_close_time = new DateTime($current_time->format('Y-m-d') . ' ' . $session_times['morning_close'] . ':00', $timezone);
+    $evening_close_time = new DateTime($current_time->format('Y-m-d') . ' ' . $session_times['evening_close'] . ':00', $timezone);
+
+    if ($current_time <= $morning_close_time) {
         return '12:01 PM';
-    } elseif ($current_time > $time_1201 && $current_time <= $time_1630) {
+    } elseif ($current_time > $morning_close_time && $current_time <= $evening_close_time) {
         return '4:30 PM';
     } else {
         return null; // No active session
@@ -104,7 +117,7 @@ function custom_lottery_get_current_session() {
  * @return array|WP_Error The decoded JSON data or a WP_Error on failure.
  */
 function custom_lottery_fetch_api_data() {
-    $api_url = 'https://api.thaistock2d.com/live';
+    $api_url = get_option('custom_lottery_api_url_live', 'https://api.thaistock2d.com/live');
 
     $response = wp_remote_get($api_url, ['timeout' => 15]);
 

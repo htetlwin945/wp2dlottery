@@ -40,8 +40,9 @@ function custom_lottery_get_dashboard_data_callback() {
         $end_date->format('Y-m-d 23:59:59')
     ), ARRAY_A);
 
+    $payout_rate = (int) get_option('custom_lottery_payout_rate', 80);
     $payout_data = $wpdb->get_results($wpdb->prepare(
-        "SELECT DATE(timestamp) as entry_date, SUM(amount * 80) as total_payouts
+        "SELECT DATE(timestamp) as entry_date, SUM(amount * $payout_rate) as total_payouts
          FROM $table_entries
          WHERE is_winner = 1 AND timestamp BETWEEN %s AND %s
          GROUP BY entry_date
@@ -267,7 +268,7 @@ function custom_lottery_manual_import_winning_numbers_handler() {
 
     global $wpdb;
     $table_winning_numbers = $wpdb->prefix . 'lotto_winning_numbers';
-    $api_url = 'https://api.thaistock2d.com/2d_result';
+    $api_url = get_option('custom_lottery_api_url_historical', 'https://api.thaistock2d.com/2d_result');
 
     // Fetch data from the API
     $response = wp_remote_get($api_url, ['timeout' => 15]);

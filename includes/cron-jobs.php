@@ -12,7 +12,7 @@ if ( ! defined( 'WPINC' ) ) {
 function custom_lottery_fetch_winning_numbers() {
     global $wpdb;
     $table_winning_numbers = $wpdb->prefix . 'lotto_winning_numbers';
-    $api_url = 'https://api.thaistock2d.com/live';
+    $api_url = get_option('custom_lottery_api_url_live', 'https://api.thaistock2d.com/live');
 
     // Fetch data from the API
     $response = wp_remote_get($api_url, ['timeout' => 15]);
@@ -92,13 +92,19 @@ function custom_lottery_identify_winners($session, $winning_number, $date) {
  * Schedule cron jobs.
  */
 function custom_lottery_schedule_cron_jobs() {
+    $session_times = custom_lottery_get_session_times();
+
     if (!wp_next_scheduled('custom_lottery_fetch_1201')) {
-        $time = new DateTime('12:02:00', new DateTimeZone('Asia/Yangon'));
+        $morning_cron_time_str = $session_times['morning_close'];
+        $time = new DateTime($morning_cron_time_str, new DateTimeZone('Asia/Yangon'));
+        $time->modify('+2 minutes'); // Run 2 minutes after closing
         $time->setTimezone(new DateTimeZone('UTC'));
         wp_schedule_event($time->getTimestamp(), 'daily', 'custom_lottery_fetch_1201');
     }
     if (!wp_next_scheduled('custom_lottery_fetch_1630')) {
-        $time = new DateTime('16:32:00', new DateTimeZone('Asia/Yangon'));
+        $evening_cron_time_str = $session_times['evening_close'];
+        $time = new DateTime($evening_cron_time_str, new DateTimeZone('Asia/Yangon'));
+        $time->modify('+2 minutes'); // Run 2 minutes after closing
         $time->setTimezone(new DateTimeZone('UTC'));
         wp_schedule_event($time->getTimestamp(), 'daily', 'custom_lottery_fetch_1630');
     }

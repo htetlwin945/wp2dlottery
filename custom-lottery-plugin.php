@@ -34,6 +34,7 @@ require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/user-roles.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/shortcodes.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/dashboard-widgets.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/class-lotto-winning-numbers-widget.php' );
+require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/settings-page.php' );
 
 /**
  * Register activation and deactivation hooks.
