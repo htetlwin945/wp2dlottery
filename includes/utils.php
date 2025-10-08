@@ -77,3 +77,23 @@ function check_and_auto_block_number($number, $session, $date) {
         }
     }
 }
+
+/**
+ * Determines the current active lottery session based on the time.
+ *
+ * @return string|null The current session ('12:01 PM' or '4:30 PM') or null if no session is active.
+ */
+function custom_lottery_get_current_session() {
+    $timezone = new DateTimeZone('Asia/Yangon');
+    $current_time = new DateTime('now', $timezone);
+    $time_1201 = new DateTime($current_time->format('Y-m-d') . ' 12:01:00', $timezone);
+    $time_1630 = new DateTime($current_time->format('Y-m-d') . ' 16:30:00', $timezone);
+
+    if ($current_time <= $time_1201) {
+        return '12:01 PM';
+    } elseif ($current_time > $time_1201 && $current_time <= $time_1630) {
+        return '4:30 PM';
+    } else {
+        return null; // No active session
+    }
+}

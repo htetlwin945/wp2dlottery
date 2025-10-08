@@ -251,6 +251,39 @@ function custom_lottery_dashboard_page_callback() {
     <div class="wrap">
         <h1><?php echo esc_html__('Lottery Dashboard', 'custom-lottery'); ?></h1>
 
+        <!-- Real-time Widgets -->
+        <div id="dashboard-widgets-wrapper" style="display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 20px;">
+
+            <!-- Today's Winning Numbers -->
+            <div id="winning-numbers-widget" class="postbox" style="flex: 1; min-width: 300px;">
+                <h2 class="hndle"><span><?php echo esc_html__("Today's Winning Numbers", 'custom-lottery'); ?></span></h2>
+                <div class="inside">
+                    <p><strong><?php echo esc_html__('Morning (12:01 PM):', 'custom-lottery'); ?></strong> <span id="winning-number-morning">--</span></p>
+                    <p><strong><?php echo esc_html__('Evening (4:30 PM):', 'custom-lottery'); ?></strong> <span id="winning-number-evening">--</span></p>
+                </div>
+            </div>
+
+            <!-- Live Sales Ticker -->
+            <div id="live-sales-widget" class="postbox" style="flex: 1; min-width: 300px;">
+                <h2 class="hndle"><span><?php echo esc_html__('Live Sales Ticker', 'custom-lottery'); ?></span></h2>
+                <div class="inside">
+                    <p><strong><?php echo esc_html__('Current Session:', 'custom-lottery'); ?></strong> <span id="live-sales-session">--</span></p>
+                    <p><strong><?php echo esc_html__('Total Sales:', 'custom-lottery'); ?></strong> <span id="live-sales-total">0</span> Kyat</p>
+                </div>
+            </div>
+
+            <!-- Top 5 Hot Numbers -->
+            <div id="hot-numbers-widget" class="postbox" style="flex: 1; min-width: 300px;">
+                <h2 class="hndle"><span><?php echo esc_html__("Today's Top 5 Hot Numbers", 'custom-lottery'); ?></span></h2>
+                <div class="inside">
+                    <ul id="hot-numbers-list" style="margin-top: 0;">
+                        <li><?php echo esc_html__('Loading...', 'custom-lottery'); ?></li>
+                    </ul>
+                </div>
+            </div>
+
+        </div>
+
         <div class="dashboard-controls">
             <label for="dashboard-range-selector"><?php echo esc_html__('Select Date Range:', 'custom-lottery'); ?></label>
             <select id="dashboard-range-selector">

@@ -224,3 +224,20 @@ function custom_lottery_get_customer_results_callback() {
 }
 add_action('wp_ajax_get_customer_lottery_results', 'custom_lottery_get_customer_results_callback');
 add_action('wp_ajax_nopriv_get_customer_lottery_results', 'custom_lottery_get_customer_results_callback'); // For non-logged-in users
+
+
+/**
+ * AJAX handler for getting real-time dashboard widget data.
+ */
+function custom_lottery_get_dashboard_widgets_data_callback() {
+    check_ajax_referer('dashboard_nonce', 'nonce');
+
+    $data = [
+        'winning_numbers' => custom_lottery_get_todays_winning_numbers(),
+        'live_sales'      => custom_lottery_get_live_sales_data(),
+        'hot_numbers'     => custom_lottery_get_top_hot_numbers(),
+    ];
+
+    wp_send_json_success($data);
+}
+add_action('wp_ajax_get_dashboard_widgets_data', 'custom_lottery_get_dashboard_widgets_data_callback');

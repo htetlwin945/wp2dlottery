@@ -32,6 +32,7 @@ require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/cron-jobs.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/utils.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/user-roles.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/shortcodes.php' );
+require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/dashboard-widgets.php' );
 
 /**
  * Register activation and deactivation hooks.
@@ -81,6 +82,13 @@ function custom_lottery_enqueue_scripts($hook) {
             CUSTOM_LOTTERY_PLUGIN_URL . 'js/lottery-dashboard.js',
             ['chart-js', 'jquery'],
             '1.0.0',
+            true
+        );
+        wp_enqueue_script(
+            'custom-lottery-dashboard-widgets',
+            CUSTOM_LOTTERY_PLUGIN_URL . 'js/dashboard-widgets.js',
+            ['jquery'],
+            CUSTOM_LOTTERY_VERSION,
             true
         );
     }
