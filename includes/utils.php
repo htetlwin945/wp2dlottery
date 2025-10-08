@@ -23,40 +23,83 @@ function custom_lottery_log_action($action, $details) {
 /**
  * Creates or updates a customer in the database based on the phone number.
  */
-function custom_lottery_update_or_create_customer($name, $phone) {
+function custom_lottery_update_or_create_customer($name, $phone, $agent_id = null) {
     global $wpdb;
     $table_customers = $wpdb->prefix . 'lotto_customers';
 
-    $wpdb->query($wpdb->prepare(
-        "INSERT INTO $table_customers (customer_name, phone, last_seen) VALUES (%s, %s, %s)
-         ON DUPLICATE KEY UPDATE customer_name = %s, last_seen = %s",
-        $name,
-        $phone,
-        current_time('mysql'),
-        $name,
-        current_time('mysql')
-    ));
+    $existing_customer = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_customers WHERE phone = %s", $phone));
+
+    if ($existing_customer) {
+        // Customer exists, update their name, last_seen, and agent_id if a new one is provided.
+        $data_to_update = [
+            'customer_name' => $name,
+            'last_seen'     => current_time('mysql'),
+        ];
+        if ($agent_id) {
+            $data_to_update['agent_id'] = $agent_id;
+        }
+        $wpdb->update(
+            $table_customers,
+            $data_to_update,
+            ['id' => $existing_customer->id]
+        );
+    } else {
+        // New customer, insert with agent_id if provided.
+        $data = [
+            'customer_name' => $name,
+            'phone'         => $phone,
+            'last_seen'     => current_time('mysql'),
+        ];
+        if ($agent_id) {
+            $data['agent_id'] = $agent_id;
+        }
+        $wpdb->insert($table_customers, $data);
+    }
 }
 
 /**
  * Checks if a number's total purchased amount exceeds the custom limit and blocks it if necessary.
+ * This function handles both global limits and agent-specific limits.
  */
-function check_and_auto_block_number($number, $session, $date) {
+function check_and_auto_block_number($number, $session, $date, $agent_id = null) {
+    // First, check if the master switch for auto-blocking is enabled.
+    if (!get_option('custom_lottery_enable_auto_blocking')) {
+        return;
+    }
+
     global $wpdb;
     $table_entries = $wpdb->prefix . 'lotto_entries';
     $table_limits = $wpdb->prefix . 'lotto_limits';
+    $table_agents = $wpdb->prefix . 'lotto_agents';
 
-    $limit_amount = get_option('custom_lottery_number_limit', 5000);
+    $limit_amount = 0;
+    $where_clauses = [
+        "lottery_number = %s",
+        "draw_session = %s",
+        "timestamp BETWEEN %s AND %s"
+    ];
+    $query_params = [$number, $session, $date . ' 00:00:00', $date . ' 23:59:59'];
 
-    $start_datetime = $date . ' 00:00:00';
-    $end_datetime = $date . ' 23:59:59';
+    if ($agent_id) {
+        // For a commission agent, use their personal limit and scope the sales check to their entries.
+        $limit_amount = $wpdb->get_var($wpdb->prepare("SELECT per_number_limit FROM $table_agents WHERE id = %d", $agent_id));
+        $where_clauses[] = "agent_id = %d";
+        $query_params[] = $agent_id;
+    } else {
+        // For admins or other users, use the global limit and check total sales across all agents.
+        $limit_amount = get_option('custom_lottery_number_limit', 5000);
+    }
 
-    $number_total_amount = $wpdb->get_var($wpdb->prepare(
-        "SELECT SUM(amount) FROM $table_entries WHERE lottery_number = %s AND draw_session = %s AND timestamp BETWEEN %s AND %s",
-        $number, $session, $start_datetime, $end_datetime
-    ));
+    // If no limit is set (e.g., agent limit is 0), do not proceed with the check.
+    if (empty($limit_amount) || $limit_amount <= 0) {
+        return;
+    }
+
+    $where_sql = implode(' AND ', $where_clauses);
+    $number_total_amount = $wpdb->get_var($wpdb->prepare("SELECT SUM(amount) FROM $table_entries WHERE $where_sql", $query_params));
 
     if ($number_total_amount >= $limit_amount) {
+        // Check if the number is already blocked for the session to avoid duplicate entries.
         $is_already_blocked = $wpdb->get_var($wpdb->prepare(
             "SELECT id FROM $table_limits WHERE lottery_number = %s AND draw_date = %s AND draw_session = %s",
             $number, $date, $session

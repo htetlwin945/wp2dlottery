@@ -109,174 +109,9 @@ function custom_lottery_admin_menu() {
         'custom_lottery_settings_page_callback'
     );
 
-    add_submenu_page(
-        'custom-lottery-dashboard',
-        __( 'Agents', 'custom-lottery' ),
-        __( 'Agents', 'custom-lottery' ),
-        'manage_options',
-        'custom-lottery-agents',
-        'custom_lottery_agents_page_callback'
-    );
-
     add_action( "load-{$dashboard_hook}", 'custom_lottery_add_dashboard_widgets' );
 }
 add_action( 'admin_menu', 'custom_lottery_admin_menu' );
-
-/**
- * Callback for the Agents page.
- */
-function custom_lottery_agents_page_callback() {
-    global $wpdb;
-    $table_name = $wpdb->prefix . 'lotto_agents';
-    $page_slug = 'custom-lottery-agents';
-    $action = isset($_REQUEST['action']) ? sanitize_key($_REQUEST['action']) : 'list';
-    $agent_id = isset($_REQUEST['agent_id']) ? absint($_REQUEST['agent_id']) : 0;
-
-    // Handle form submission for adding/editing agents
-    if (isset($_POST['submit_agent']) && check_admin_referer('cl_save_agent_action', 'cl_save_agent_nonce')) {
-        $agent_id = absint($_POST['agent_id']);
-        $user_id = absint($_POST['user_id']);
-        $agent_type = sanitize_text_field($_POST['agent_type']);
-        $commission_rate = sanitize_text_field($_POST['commission_rate']);
-        $per_number_limit = sanitize_text_field($_POST['per_number_limit']);
-        $status = sanitize_text_field($_POST['status']);
-
-        $data = [
-            'user_id' => $user_id,
-            'agent_type' => $agent_type,
-            'commission_rate' => ($agent_type === 'commission') ? $commission_rate : 0,
-            'per_number_limit' => ($agent_type === 'commission') ? $per_number_limit : 0,
-            'status' => $status,
-        ];
-
-        if ($agent_id > 0) {
-            if ($wpdb->update($table_name, $data, ['id' => $agent_id])) {
-                echo '<div class="updated"><p>' . esc_html__('Agent updated successfully.', 'custom-lottery') . '</p></div>';
-            }
-        } else {
-            if ($wpdb->insert($table_name, $data)) {
-                echo '<div class="updated"><p>' . esc_html__('Agent added successfully.', 'custom-lottery') . '</p></div>';
-            }
-        }
-        $action = 'list'; // Go back to the list view
-    }
-
-    // Handle deletion
-    if ($action === 'delete' && $agent_id > 0) {
-        $nonce = isset($_REQUEST['_wpnonce']) ? $_REQUEST['_wpnonce'] : '';
-        if (wp_verify_nonce($nonce, 'cl_delete_agent_' . $agent_id)) {
-            if ($wpdb->delete($table_name, ['id' => $agent_id])) {
-                echo '<div class="updated"><p>' . esc_html__('Agent deleted successfully.', 'custom-lottery') . '</p></div>';
-            }
-        }
-        $action = 'list'; // Go back to the list view
-    }
-
-    // Display add/edit form or the list table
-    if ($action === 'add' || ($action === 'edit' && $agent_id > 0)) {
-        $agent = null;
-        if ($agent_id > 0) {
-            $agent = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE id = %d", $agent_id));
-        }
-        $form_title = $agent ? __('Edit Agent', 'custom-lottery') : __('Add New Agent', 'custom-lottery');
-        $button_text = $agent ? __('Save Changes', 'custom-lottery') : __('Add Agent', 'custom-lottery');
-
-        // Get all user IDs that are already assigned to an agent
-        $assigned_user_ids = $wpdb->get_col("SELECT user_id FROM $table_name");
-
-        // Get all users
-        $all_users = get_users(['fields' => ['ID', 'display_name']]);
-        $available_users = [];
-
-        // Filter the user list to show only un-assigned users, plus the current user if editing
-        foreach ($all_users as $user) {
-            $is_assigned = in_array($user->ID, $assigned_user_ids);
-            if ($agent && $agent->user_id == $user->ID) {
-                // If editing, always include the current agent's user in the list
-                $available_users[] = $user;
-            } elseif (!$is_assigned) {
-                // For new agents, only include users not already assigned
-                $available_users[] = $user;
-            }
-        }
-        ?>
-        <div class="wrap">
-            <h1><?php echo esc_html($form_title); ?></h1>
-            <a href="?page=<?php echo esc_attr($page_slug); ?>" class="button">&larr; <?php esc_html_e('Back to Agents List', 'custom-lottery'); ?></a>
-            <form method="post" style="margin-top: 20px;">
-                <input type="hidden" name="agent_id" value="<?php echo esc_attr($agent_id); ?>">
-                <?php wp_nonce_field('cl_save_agent_action', 'cl_save_agent_nonce'); ?>
-                <table class="form-table">
-                    <tr>
-                        <th scope="row"><label for="user_id"><?php esc_html_e('User', 'custom-lottery'); ?></label></th>
-                        <td>
-                            <select id="user_id" name="user_id" required>
-                                <option value=""><?php esc_html_e('Select an available User', 'custom-lottery'); ?></option>
-                                <?php foreach ($available_users as $user) : ?>
-                                    <option value="<?php echo esc_attr($user->ID); ?>" <?php if ($agent) selected($agent->user_id, $user->ID); ?>><?php echo esc_html($user->display_name); ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><label for="agent_type"><?php esc_html_e('Agent Type', 'custom-lottery'); ?></label></th>
-                        <td>
-                            <select id="agent_type" name="agent_type" required>
-                                <option value="commission" <?php if ($agent) selected($agent->agent_type, 'commission'); ?>><?php esc_html_e('Commission Agent', 'custom-lottery'); ?></option>
-                                <option value="cover" <?php if ($agent) selected($agent->agent_type, 'cover'); ?>><?php esc_html_e('Cover Agent', 'custom-lottery'); ?></option>
-                            </select>
-                        </td>
-                    </tr>
-                    <tr class="commission-only-row">
-                        <th scope="row"><label for="commission_rate"><?php esc_html_e('Commission Rate (%)', 'custom-lottery'); ?></label></th>
-                        <td><input type="number" id="commission_rate" name="commission_rate" value="<?php echo $agent ? esc_attr($agent->commission_rate) : '0.00'; ?>" step="0.01" min="0"></td>
-                    </tr>
-                     <tr class="commission-only-row">
-                        <th scope="row"><label for="per_number_limit"><?php esc_html_e('Per-Number Limit Amount', 'custom-lottery'); ?></label></th>
-                        <td><input type="number" id="per_number_limit" name="per_number_limit" value="<?php echo $agent ? esc_attr($agent->per_number_limit) : '0.00'; ?>" step="1" min="0"></td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><label for="status"><?php esc_html_e('Status', 'custom-lottery'); ?></label></th>
-                        <td>
-                            <select id="status" name="status" required>
-                                <option value="active" <?php if ($agent) selected($agent->status, 'active'); ?>><?php esc_html_e('Active', 'custom-lottery'); ?></option>
-                                <option value="inactive" <?php if ($agent) selected($agent->status, 'inactive'); ?>><?php esc_html_e('Inactive', 'custom-lottery'); ?></option>
-                            </select>
-                        </td>
-                    </tr>
-                </table>
-                <?php submit_button($button_text, 'primary', 'submit_agent'); ?>
-            </form>
-        </div>
-        <script>
-            jQuery(document).ready(function($) {
-                function toggleCommissionFields() {
-                    if ($('#agent_type').val() === 'commission') {
-                        $('.commission-only-row').show();
-                    } else {
-                        $('.commission-only-row').hide();
-                    }
-                }
-                toggleCommissionFields();
-                $('#agent_type').on('change', toggleCommissionFields);
-            });
-        </script>
-        <?php
-    } else {
-        require_once plugin_dir_path(__FILE__) . 'class-lotto-agents-list-table.php';
-        $agents_list_table = new Lotto_Agents_List_Table();
-        $agents_list_table->prepare_items();
-        ?>
-        <div class="wrap">
-            <h1 class="wp-heading-inline"><?php echo esc_html__('Agents', 'custom-lottery'); ?></h1>
-            <a href="?page=<?php echo esc_attr($_REQUEST['page']); ?>&action=add" class="page-title-action"><?php echo esc_html__('Add New', 'custom-lottery'); ?></a>
-            <form method="post">
-                <?php $agents_list_table->display(); ?>
-            </form>
-        </div>
-        <?php
-    }
-}
 
 /**
  * Callback for the Customers page.
@@ -484,6 +319,7 @@ function custom_lottery_dashboard_page_callback() {
 function custom_lottery_advanced_reports_page_callback() {
     global $wpdb;
     $table_entries = $wpdb->prefix . 'lotto_entries';
+    $table_agents = $wpdb->prefix . 'lotto_agents';
 
     $timezone = new DateTimeZone('Asia/Yangon');
     $default_start_date = (new DateTime('first day of this month', $timezone))->format('Y-m-d');
@@ -494,20 +330,33 @@ function custom_lottery_advanced_reports_page_callback() {
     $query_start_date = $start_date . ' 00:00:00';
     $query_end_date = $end_date . ' 23:59:59';
 
-    $top_customers = $wpdb->get_results($wpdb->prepare(
-        "SELECT customer_name, phone, SUM(amount) as total_spent FROM $table_entries WHERE timestamp BETWEEN %s AND %s GROUP BY customer_name, phone ORDER BY total_spent DESC LIMIT 20",
-        $query_start_date, $query_end_date
-    ));
+    $where_clauses = [];
+    $query_params = [];
 
-    $hot_numbers = $wpdb->get_results($wpdb->prepare(
-        "SELECT lottery_number, COUNT(id) as purchase_count FROM $table_entries WHERE timestamp BETWEEN %s AND %s GROUP BY lottery_number ORDER BY purchase_count DESC LIMIT 10",
-        $query_start_date, $query_end_date
-    ));
+    // Agent-specific data segregation
+    $current_user = wp_get_current_user();
+    if (in_array('commission_agent', (array) $current_user->roles)) {
+        $agent_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_agents WHERE user_id = %d", $current_user->ID));
+        if ($agent_id) {
+            $where_clauses[] = "agent_id = %d";
+            $query_params[] = $agent_id;
+        } else {
+            $where_clauses[] = "1=0"; // See no data
+        }
+    }
 
-    $cold_numbers = $wpdb->get_results($wpdb->prepare(
-        "SELECT lottery_number, COUNT(id) as purchase_count FROM $table_entries WHERE timestamp BETWEEN %s AND %s GROUP BY lottery_number ORDER BY purchase_count ASC LIMIT 10",
-        $query_start_date, $query_end_date
-    ));
+    $where_clauses[] = "timestamp BETWEEN %s AND %s";
+    array_push($query_params, $query_start_date, $query_end_date);
+    $where_sql = 'WHERE ' . implode(' AND ', $where_clauses);
+
+    $top_customers_sql = "SELECT customer_name, phone, SUM(amount) as total_spent FROM $table_entries $where_sql GROUP BY customer_name, phone ORDER BY total_spent DESC LIMIT 20";
+    $top_customers = $wpdb->get_results($wpdb->prepare($top_customers_sql, $query_params));
+
+    $hot_numbers_sql = "SELECT lottery_number, COUNT(id) as purchase_count FROM $table_entries $where_sql GROUP BY lottery_number ORDER BY purchase_count DESC LIMIT 10";
+    $hot_numbers = $wpdb->get_results($wpdb->prepare($hot_numbers_sql, $query_params));
+
+    $cold_numbers_sql = "SELECT lottery_number, COUNT(id) as purchase_count FROM $table_entries $where_sql GROUP BY lottery_number ORDER BY purchase_count ASC LIMIT 10";
+    $cold_numbers = $wpdb->get_results($wpdb->prepare($cold_numbers_sql, $query_params));
     ?>
     <div class="wrap">
         <h1><?php echo esc_html__('Advanced Reports', 'custom-lottery'); ?></h1>
@@ -819,6 +668,7 @@ function custom_lottery_entry_page_callback() {
 function custom_lottery_reports_page_callback() {
     global $wpdb;
     $table_name = $wpdb->prefix . 'lotto_entries';
+    $table_agents = $wpdb->prefix . 'lotto_agents';
 
     $timezone = new DateTimeZone('Asia/Yangon');
     $current_datetime = new DateTime('now', $timezone);
@@ -832,18 +682,34 @@ function custom_lottery_reports_page_callback() {
     $start_datetime = $selected_date . ' 00:00:00';
     $end_datetime = $selected_date . ' 23:59:59';
 
-    $total_sales = $wpdb->get_var($wpdb->prepare(
-        "SELECT SUM(amount) FROM $table_name WHERE draw_session = %s AND timestamp BETWEEN %s AND %s",
-        $selected_session, $start_datetime, $end_datetime
-    ));
+    // Base WHERE clauses for agent segregation
+    $where_clauses = [];
+    $query_params = [];
+    $current_user = wp_get_current_user();
+    if (in_array('commission_agent', (array) $current_user->roles)) {
+        $agent_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_agents WHERE user_id = %d", $current_user->ID));
+        if ($agent_id) {
+            $where_clauses[] = "agent_id = %d";
+            $query_params[] = $agent_id;
+        } else {
+            $where_clauses[] = "1=0"; // See no data
+        }
+    }
+
+    // Build query for total sales
+    $total_sales_where = array_merge($where_clauses, ["draw_session = %s", "timestamp BETWEEN %s AND %s"]);
+    $total_sales_params = array_merge($query_params, [$selected_session, $start_datetime, $end_datetime]);
+    $total_sales_sql = "SELECT SUM(amount) FROM $table_name WHERE " . implode(' AND ', $total_sales_where);
+    $total_sales = $wpdb->get_var($wpdb->prepare($total_sales_sql, $total_sales_params));
     $total_sales = $total_sales ? $total_sales : 0;
 
     $payout_rate = get_option('custom_lottery_payout_rate', 80);
 
-    $results = $wpdb->get_results($wpdb->prepare(
-        "SELECT lottery_number, SUM(amount) as total_amount FROM $table_name WHERE draw_session = %s AND timestamp BETWEEN %s AND %s GROUP BY lottery_number ORDER BY lottery_number ASC",
-        $selected_session, $start_datetime, $end_datetime
-    ));
+    // Build query for results grouped by number
+    $results_where = array_merge($where_clauses, ["draw_session = %s", "timestamp BETWEEN %s AND %s"]);
+    $results_params = array_merge($query_params, [$selected_session, $start_datetime, $end_datetime]);
+    $results_sql = "SELECT lottery_number, SUM(amount) as total_amount FROM $table_name WHERE " . implode(' AND ', $results_where) . " GROUP BY lottery_number ORDER BY lottery_number ASC";
+    $results = $wpdb->get_results($wpdb->prepare($results_sql, $results_params));
 
     // Fetch winning number to calculate profit/loss
     $table_winning_numbers = $wpdb->prefix . 'lotto_winning_numbers';
@@ -854,10 +720,11 @@ function custom_lottery_reports_page_callback() {
 
     $actual_payout = 0;
     if ($winning_number) {
-        $winning_number_total_amount = $wpdb->get_var($wpdb->prepare(
-            "SELECT SUM(amount) FROM $table_name WHERE lottery_number = %s AND draw_session = %s AND timestamp BETWEEN %s AND %s",
-            $winning_number, $selected_session, $start_datetime, $end_datetime
-        ));
+        $payout_where = array_merge($where_clauses, ["lottery_number = %s", "draw_session = %s", "timestamp BETWEEN %s AND %s"]);
+        $payout_params = array_merge($query_params, [$winning_number, $selected_session, $start_datetime, $end_datetime]);
+        $payout_sql = "SELECT SUM(amount) FROM $table_name WHERE " . implode(' AND ', $payout_where);
+        $winning_number_total_amount = $wpdb->get_var($wpdb->prepare($payout_sql, $payout_params));
+
         if ($winning_number_total_amount) {
             $actual_payout = $winning_number_total_amount * $payout_rate;
         }
