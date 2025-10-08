@@ -6,38 +6,7 @@ if ( ! defined( 'WPINC' ) ) {
 }
 
 /**
- * Get the winning numbers for today's sessions.
- *
- * @return array
- */
-function custom_lottery_get_todays_winning_numbers() {
-    global $wpdb;
-    $table_name = $wpdb->prefix . 'lotto_winning_numbers';
-    $today = (new DateTime('now', new DateTimeZone('Asia/Yangon')))->format('Y-m-d');
-
-    $results = $wpdb->get_results($wpdb->prepare(
-        "SELECT session, number FROM {$table_name} WHERE DATE(timestamp) = %s",
-        $today
-    ));
-
-    $winning_numbers = [
-        'morning' => '--',
-        'evening' => '--',
-    ];
-
-    foreach ($results as $result) {
-        if ($result->session === '12:01 PM') {
-            $winning_numbers['morning'] = $result->number;
-        } elseif ($result->session === '4:30 PM') {
-            $winning_numbers['evening'] = $result->number;
-        }
-    }
-
-    return $winning_numbers;
-}
-
-/**
- * Get the live sales data for the current active session.
+ * Get the live sales data for the current active session from the local database.
  *
  * @return array
  */
@@ -73,7 +42,7 @@ function custom_lottery_get_live_sales_data() {
 }
 
 /**
- * Get the top 5 hot numbers for the current day.
+ * Get the top 5 hot numbers for the current day from the local database.
  *
  * @return array
  */

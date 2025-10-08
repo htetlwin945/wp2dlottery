@@ -97,3 +97,32 @@ function custom_lottery_get_current_session() {
         return null; // No active session
     }
 }
+
+/**
+ * Fetches data from the Thai Stock 2D API.
+ *
+ * @return array|WP_Error The decoded JSON data or a WP_Error on failure.
+ */
+function custom_lottery_fetch_api_data() {
+    $api_url = 'https://api.thaistock2d.com/live';
+
+    $response = wp_remote_get($api_url, ['timeout' => 15]);
+
+    if (is_wp_error($response)) {
+        return $response;
+    }
+
+    $response_code = wp_remote_retrieve_response_code($response);
+    if ($response_code !== 200) {
+        return new WP_Error('api_error', 'API returned a non-200 response code.', ['status' => $response_code]);
+    }
+
+    $body = wp_remote_retrieve_body($response);
+    $data = json_decode($body, true);
+
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        return new WP_Error('json_error', 'Error decoding JSON response from API.', ['json_error' => json_last_error_msg()]);
+    }
+
+    return $data;
+}
