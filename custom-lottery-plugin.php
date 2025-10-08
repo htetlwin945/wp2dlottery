@@ -3,7 +3,7 @@
  * Plugin Name:       Custom 2-Digit Lottery
  * Plugin URI:        https://example.com/
  * Description:       A custom plugin to manage a 2-digit lottery system in WordPress.
- * Version:           1.1.0
+ * Version:           1.2.0
  * Author:            Jules
  * Author URI:        https://example.com/
  * License:           GPL v2 or later
@@ -18,7 +18,7 @@ if ( ! defined( 'WPINC' ) ) {
 }
 
 // Define plugin constants
-define( 'CUSTOM_LOTTERY_VERSION', '1.1.0' );
+define( 'CUSTOM_LOTTERY_VERSION', '1.2.0' );
 define( 'CUSTOM_LOTTERY_PLUGIN_PATH', plugin_dir_path( __FILE__ ) );
 define( 'CUSTOM_LOTTERY_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
