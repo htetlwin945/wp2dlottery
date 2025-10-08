@@ -20,7 +20,7 @@ window.initializeLotteryForm = function($container) {
                 data: {
                     action: 'search_customers',
                     term: request.term,
-                    lottery_entry_nonce: $container.find('#lottery_entry_nonce').val()
+                    nonce: $container.find('#lottery_entry_nonce').val()
                 },
                 success: function(data) {
                     response(data);
@@ -97,7 +97,7 @@ window.initializeLotteryForm = function($container) {
 
         var formData = {
             action: 'submit_lottery_entries',
-            lottery_entry_nonce: $container.find('#lottery_entry_nonce').val(),
+            nonce: $container.find('#lottery_entry_nonce').val(),
             customer_name: $container.find('#customer-name').val(),
             phone: $container.find('#phone').val(),
             draw_session: $container.find('#draw-session').val(),

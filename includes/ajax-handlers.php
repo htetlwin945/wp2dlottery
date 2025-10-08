@@ -75,12 +75,12 @@ add_action('wp_ajax_get_dashboard_data', 'custom_lottery_get_dashboard_data_call
  * AJAX handler for searching customers by phone number.
  */
 function custom_lottery_search_customers_callback() {
-    check_ajax_referer('lottery_entry_action', 'lottery_entry_nonce');
+    check_ajax_referer('lottery_entry_action', 'nonce');
 
     global $wpdb;
     $table_customers = $wpdb->prefix . 'lotto_customers';
 
-    $term = isset($_GET['term']) ? sanitize_text_field($_GET['term']) : '';
+    $term = isset($_REQUEST['term']) ? sanitize_text_field($_REQUEST['term']) : '';
 
     if (empty($term)) {
         wp_send_json([]);
@@ -109,7 +109,7 @@ add_action('wp_ajax_search_customers', 'custom_lottery_search_customers_callback
  * AJAX handler for submitting a batch of lottery entries.
  */
 function custom_lottery_submit_entries_callback() {
-    check_ajax_referer('lottery_entry_action', 'lottery_entry_nonce');
+    check_ajax_referer('lottery_entry_action', 'nonce');
 
     global $wpdb;
     $table_entries = $wpdb->prefix . 'lotto_entries';
