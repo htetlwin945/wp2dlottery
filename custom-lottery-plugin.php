@@ -50,25 +50,25 @@ function custom_lottery_enqueue_scripts($hook) {
         return;
     }
 
-    // For the entry page
-    if ($hook === 'lottery_page_custom-lottery-entry') {
+    // For pages with the lottery entry form (Lottery Entry & All Entries)
+    if ($hook === 'lottery_page_custom-lottery-entry' || strpos($hook, 'custom-lottery-all-entries') !== false) {
         wp_enqueue_style('jquery-ui-css', 'https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/themes/smoothness/jquery-ui.css');
         wp_enqueue_script(
             'custom-lottery-entry',
             CUSTOM_LOTTERY_PLUGIN_URL . 'js/lottery-entry.js',
             ['jquery', 'jquery-ui-autocomplete'],
-            '1.1.0',
+            '1.2.0',
             true
         );
     }
 
-    // For the All Entries page
+    // For the All Entries page (additionally load popup logic)
     if (strpos($hook, 'custom-lottery-all-entries') !== false) {
         wp_enqueue_script(
             'custom-lottery-all-entries',
             CUSTOM_LOTTERY_PLUGIN_URL . 'js/all-entries.js',
-            ['jquery'],
-            '1.0.0',
+            ['jquery', 'jquery-ui-dialog', 'custom-lottery-entry'],
+            '1.1.0',
             true
         );
     }

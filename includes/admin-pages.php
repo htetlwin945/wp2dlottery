@@ -519,6 +519,7 @@ function custom_lottery_all_entries_page_callback() {
         ?>
         <div class="wrap">
             <h1 class="wp-heading-inline"><?php echo esc_html__('All Lottery Entries', 'custom-lottery'); ?></h1>
+            <button type="button" id="add-new-entry-popup" class="page-title-action"><?php echo esc_html__('Add New Entry', 'custom-lottery'); ?></button>
 
             <form method="get" style="margin-bottom: 15px;">
                 <input type="hidden" name="page" value="<?php echo esc_attr($_REQUEST['page']); ?>">
@@ -539,15 +540,19 @@ function custom_lottery_all_entries_page_callback() {
             <form method="post">
                 <?php $lotto_list_table->display(); ?>
             </form>
+
+            <div id="lottery-entry-popup" title="<?php esc_attr_e('Add New Lottery Entry', 'custom-lottery'); ?>" style="display:none;">
+                <?php custom_lottery_render_entry_form(); ?>
+            </div>
         </div>
         <?php
     }
 }
 
 /**
- * Callback function for the Lottery Entry page.
+ * Renders the reusable lottery entry form.
  */
-function custom_lottery_entry_page_callback() {
+function custom_lottery_render_entry_form() {
     $timezone = new DateTimeZone('Asia/Yangon');
     $current_time = new DateTime('now', $timezone);
     $time_1201 = new DateTime($current_time->format('Y-m-d') . ' 12:01:00', $timezone);
@@ -558,6 +563,58 @@ function custom_lottery_entry_page_callback() {
         $default_session = '4:30 PM';
     }
     ?>
+    <form id="lottery-entry-form" method="post">
+        <?php wp_nonce_field( 'lottery_entry_action', 'lottery_entry_nonce' ); ?>
+        <table class="form-table">
+            <tbody>
+                <tr>
+                    <th scope="row"><label for="customer-name"><?php echo esc_html__( 'Customer Name', 'custom-lottery' ); ?></label></th>
+                    <td><input type="text" id="customer-name" name="customer_name" class="regular-text" required></td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="phone"><?php echo esc_html__( 'Phone', 'custom-lottery' ); ?></label></th>
+                    <td><input type="text" id="phone" name="phone" class="regular-text" required></td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="draw-session"><?php echo esc_html__( 'Draw Session', 'custom-lottery' ); ?></label></th>
+                    <td>
+                        <select id="draw-session" name="draw_session">
+                            <option value="12:01 PM" <?php selected( $default_session, '12:01 PM' ); ?>>12:01 PM</option>
+                            <option value="4:30 PM" <?php selected( $default_session, '4:30 PM' ); ?>>4:30 PM</option>
+                        </select>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <hr>
+        <h2><?php echo esc_html__( 'Entries', 'custom-lottery' ); ?></h2>
+        <div id="entry-rows-wrapper">
+            <div class="entry-row">
+                <input type="text" name="lottery_number[]" placeholder="Number (e.g., 45)" maxlength="2" pattern="\d{2}" class="small-text" required>
+                <input type="number" name="amount[]" placeholder="Amount" class="small-text" step="100" min="0" required>
+                <label style="margin-left: 5px; margin-right: 10px;">
+                    <input type="checkbox" name="reverse_entry[]" value="1"> <?php echo esc_html__( 'Reverse ("R")', 'custom-lottery' ); ?>
+                </label>
+                <span class="remove-entry-row" style="display:none;">&times;</span>
+            </div>
+        </div>
+        <button type="button" id="add-entry-row" class="button" style="margin-top: 10px;"><?php echo esc_html__( 'Add More', 'custom-lottery' ); ?></button>
+
+        <p class="submit">
+            <button type="submit" class="button button-primary"><?php echo esc_html__( 'Submit All Entries', 'custom-lottery' ); ?></button>
+        </p>
+    </form>
+    <div id="form-response"></div>
+    <button id="print-receipt-button" class="button" style="display: none; margin-top: 10px;"><?php echo esc_html__( 'Print Receipt', 'custom-lottery' ); ?></button>
+    <?php
+}
+
+/**
+ * Callback function for the Lottery Entry page.
+ */
+function custom_lottery_entry_page_callback() {
+    ?>
     <style>
         .entry-row { display: flex; align-items: center; margin-bottom: 10px; }
         .entry-row input { margin-right: 10px; }
@@ -565,50 +622,7 @@ function custom_lottery_entry_page_callback() {
     </style>
     <div class="wrap">
         <h1><?php echo esc_html__( 'Lottery Entry', 'custom-lottery' ); ?></h1>
-        <form id="lottery-entry-form" method="post">
-            <?php wp_nonce_field( 'lottery_entry_action', 'lottery_entry_nonce' ); ?>
-            <table class="form-table">
-                <tbody>
-                    <tr>
-                        <th scope="row"><label for="customer-name"><?php echo esc_html__( 'Customer Name', 'custom-lottery' ); ?></label></th>
-                        <td><input type="text" id="customer-name" name="customer_name" class="regular-text" required></td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><label for="phone"><?php echo esc_html__( 'Phone', 'custom-lottery' ); ?></label></th>
-                        <td><input type="text" id="phone" name="phone" class="regular-text" required></td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><label for="draw-session"><?php echo esc_html__( 'Draw Session', 'custom-lottery' ); ?></label></th>
-                        <td>
-                            <select id="draw-session" name="draw_session">
-                                <option value="12:01 PM" <?php selected( $default_session, '12:01 PM' ); ?>>12:01 PM</option>
-                                <option value="4:30 PM" <?php selected( $default_session, '4:30 PM' ); ?>>4:30 PM</option>
-                            </select>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-
-            <hr>
-            <h2><?php echo esc_html__( 'Entries', 'custom-lottery' ); ?></h2>
-            <div id="entry-rows-wrapper">
-                <div class="entry-row">
-                    <input type="text" name="lottery_number[]" placeholder="Number (e.g., 45)" maxlength="2" pattern="\d{2}" class="small-text" required>
-                    <input type="number" name="amount[]" placeholder="Amount" class="small-text" step="100" min="0" required>
-                    <label style="margin-left: 5px; margin-right: 10px;">
-                        <input type="checkbox" name="reverse_entry[]" value="1"> <?php echo esc_html__( 'Reverse ("R")', 'custom-lottery' ); ?>
-                    </label>
-                    <span class="remove-entry-row" style="display:none;">&times;</span>
-                </div>
-            </div>
-            <button type="button" id="add-entry-row" class="button" style="margin-top: 10px;"><?php echo esc_html__( 'Add More', 'custom-lottery' ); ?></button>
-
-            <p class="submit">
-                <button type="submit" class="button button-primary"><?php echo esc_html__( 'Submit All Entries', 'custom-lottery' ); ?></button>
-            </p>
-        </form>
-        <div id="form-response"></div>
-        <button id="print-receipt-button" class="button" style="display: none; margin-top: 10px;"><?php echo esc_html__( 'Print Receipt', 'custom-lottery' ); ?></button>
+        <?php custom_lottery_render_entry_form(); ?>
     </div>
     <?php
 }
