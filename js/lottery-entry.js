@@ -33,7 +33,7 @@ window.initializeLotteryForm = function($container) {
             $container.find('#phone').val(ui.item.value);
             $container.find('#customer-name').val(ui.item.name);
         },
-        appendTo: $container
+        appendTo: $container.parent()
     });
 
     var lastTransaction = null;
