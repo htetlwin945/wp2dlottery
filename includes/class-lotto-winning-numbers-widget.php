@@ -5,19 +5,8 @@ if ( ! defined( 'WPINC' ) ) {
 }
 
 /**
- * Adds a widget to the dashboard to display winning numbers history.
- */
-function custom_lottery_register_winning_numbers_history_widget() {
-    wp_add_dashboard_widget(
-        'custom_lottery_winning_numbers_history',
-        esc_html__( 'Winning Numbers History', 'custom-lottery' ),
-        'custom_lottery_render_winning_numbers_history_widget'
-    );
-}
-add_action( 'wp_dashboard_setup', 'custom_lottery_register_winning_numbers_history_widget' );
-
-/**
  * Renders the content of the Winning Numbers History widget.
+ * This is now a standalone function to be called directly on the custom dashboard page.
  */
 function custom_lottery_render_winning_numbers_history_widget() {
     global $wpdb;

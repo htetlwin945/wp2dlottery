@@ -307,6 +307,13 @@ function custom_lottery_dashboard_page_callback() {
 
         </div>
 
+        <div class="postbox">
+            <h2 class="hndle"><span><?php echo esc_html__( 'Winning Numbers History', 'custom-lottery' ); ?></span></h2>
+            <div class="inside">
+                <?php custom_lottery_render_winning_numbers_history_widget(); ?>
+            </div>
+        </div>
+
         <div class="dashboard-controls">
             <label for="dashboard-range-selector"><?php echo esc_html__('Select Date Range:', 'custom-lottery'); ?></label>
             <select id="dashboard-range-selector">
