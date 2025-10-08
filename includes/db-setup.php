@@ -103,7 +103,7 @@ function activate_custom_lottery_plugin() {
     $sql_cover_requests = "CREATE TABLE $table_name_cover_requests (
         id bigint(20) NOT NULL AUTO_INCREMENT,
         from_agent_id bigint(20) NOT NULL,
-        to_agent_id bigint(20) NOT NULL,
+        to_agent_id bigint(20) DEFAULT NULL,
         lottery_number varchar(2) NOT NULL,
         amount decimal(10, 2) NOT NULL,
         draw_date date NOT NULL,

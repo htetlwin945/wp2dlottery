@@ -13,7 +13,6 @@ if ( ! defined( 'WPINC' ) ) {
 function custom_lottery_get_live_sales_data() {
     global $wpdb;
     $table_entries = $wpdb->prefix . 'lotto_entries';
-    $table_agents = $wpdb->prefix . 'lotto_agents';
     $timezone = new DateTimeZone('Asia/Yangon');
     $current_time = new DateTime('now', $timezone);
 
@@ -29,21 +28,12 @@ function custom_lottery_get_live_sales_data() {
     $today_start = $current_time->format('Y-m-d 00:00:00');
     $today_end = $current_time->format('Y-m-d 23:59:59');
 
-    $query = "SELECT SUM(amount) FROM {$table_entries} WHERE draw_session = %s AND timestamp BETWEEN %s AND %s";
-    $params = [$current_session, $today_start, $today_end];
-
-    $current_user = wp_get_current_user();
-    if (in_array('commission_agent', (array) $current_user->roles) && get_option('custom_lottery_enable_commission_agent_system')) {
-        $agent_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_agents WHERE user_id = %d", $current_user->ID));
-        if ($agent_id) {
-            $query .= " AND agent_id = %d";
-            $params[] = $agent_id;
-        } else {
-            return ['session' => $current_session, 'total_sales' => 0];
-        }
-    }
-
-    $total_sales = $wpdb->get_var($wpdb->prepare($query, ...$params));
+    $total_sales = $wpdb->get_var($wpdb->prepare(
+        "SELECT SUM(amount) FROM {$table_entries} WHERE draw_session = %s AND timestamp BETWEEN %s AND %s",
+        $current_session,
+        $today_start,
+        $today_end
+    ));
 
     return [
         'session' => $current_session,
@@ -59,28 +49,20 @@ function custom_lottery_get_live_sales_data() {
 function custom_lottery_get_top_hot_numbers() {
     global $wpdb;
     $table_entries = $wpdb->prefix . 'lotto_entries';
-    $table_agents = $wpdb->prefix . 'lotto_agents';
     $timezone = new DateTimeZone('Asia/Yangon');
     $today_start = (new DateTime('now', $timezone))->format('Y-m-d 00:00:00');
     $today_end = (new DateTime('now', $timezone))->format('Y-m-d 23:59:59');
 
-    $query = "SELECT lottery_number, COUNT(id) as purchase_count FROM {$table_entries} WHERE timestamp BETWEEN %s AND %s";
-    $params = [$today_start, $today_end];
-
-    $current_user = wp_get_current_user();
-    if (in_array('commission_agent', (array) $current_user->roles) && get_option('custom_lottery_enable_commission_agent_system')) {
-        $agent_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_agents WHERE user_id = %d", $current_user->ID));
-        if ($agent_id) {
-            $query .= " AND agent_id = %d";
-            $params[] = $agent_id;
-        } else {
-            return []; // No agent record, so no hot numbers
-        }
-    }
-
-    $query .= " GROUP BY lottery_number ORDER BY purchase_count DESC LIMIT 5";
-
-    $hot_numbers = $wpdb->get_results($wpdb->prepare($query, ...$params));
+    $hot_numbers = $wpdb->get_results($wpdb->prepare(
+        "SELECT lottery_number, COUNT(id) as purchase_count
+         FROM {$table_entries}
+         WHERE timestamp BETWEEN %s AND %s
+         GROUP BY lottery_number
+         ORDER BY purchase_count DESC
+         LIMIT 5",
+        $today_start,
+        $today_end
+    ));
 
     return $hot_numbers;
 }

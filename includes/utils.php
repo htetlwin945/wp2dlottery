@@ -45,59 +45,106 @@ function custom_lottery_update_or_create_customer($name, $phone, $agent_id = nul
 }
 
 /**
- * Checks if a number's total purchased amount exceeds the custom limit and blocks it if necessary.
+ * Checks if a number has exceeded its limit and takes appropriate action
+ * based on the user role and system settings (block, create cover request).
+ * This function is intended to be called *after* a batch of entries has been submitted
+ * to check the new total.
+ *
+ * @param string $number The 2-digit lottery number.
+ * @param string $session The draw session ('12:01 PM' or '4:30 PM').
+ * @param string $date The draw date (Y-m-d).
+ * @return true|WP_Error Returns true if the number is within limits or processed, or a WP_Error if it's blocked.
  */
-function check_and_auto_block_number($number, $session, $date) {
+function check_and_process_number_limit($number, $session, $date) {
     global $wpdb;
     $table_entries = $wpdb->prefix . 'lotto_entries';
     $table_limits = $wpdb->prefix . 'lotto_limits';
-    $table_agents = $wpdb->prefix . 'lotto_agents';
+    $table_cover_requests = $wpdb->prefix . 'lotto_cover_requests';
 
-    if (!get_option('custom_lottery_enable_auto_blocking')) {
-        return;
+    $user_id = get_current_user_id();
+    $user = get_userdata($user_id);
+    if (!$user) {
+        return new WP_Error('invalid_user', 'Could not find user.');
+    }
+    $user_roles = (array) $user->roles;
+
+    $is_commission_system_enabled = get_option('custom_lottery_enable_commission_agent_system');
+    $is_cover_system_enabled = get_option('custom_lottery_enable_cover_agent_system');
+    $is_auto_blocking_enabled = get_option('custom_lottery_enable_auto_blocking');
+    $is_admin_or_manager = user_can($user_id, 'manage_options');
+
+    // Scenario 1: Commission Agent - Check against personal limits (Phase 3 Requirement)
+    if ($is_commission_system_enabled && in_array('commission_agent', $user_roles)) {
+        // NOTE: This functionality is incomplete due to DB schema limitations.
+        // A personal agent limit requires a way to block a number for a *specific* agent.
+        // The `lotto_limits` table currently only supports global blocks.
+        // A schema change adding an `agent_id` to `lotto_limits` is required to fully implement this.
+        // For now, agents will be checked against the global limit as a fallback.
     }
 
-    $current_user = wp_get_current_user();
-    $limit_amount = 0;
-    $number_total_amount = 0;
+    // Scenario 2 & 3: Admin / Other Users vs Global Limit
+    $global_limit = get_option('custom_lottery_number_limit', 5000);
+    if ($global_limit <= 0) {
+        return true; // No global limit to check.
+    }
 
     $start_datetime = $date . ' 00:00:00';
     $end_datetime = $date . ' 23:59:59';
 
-    $is_agent = in_array('commission_agent', (array) $current_user->roles) && get_option('custom_lottery_enable_commission_agent_system');
+    $number_total_amount = $wpdb->get_var($wpdb->prepare(
+        "SELECT SUM(amount) FROM $table_entries WHERE lottery_number = %s AND draw_session = %s AND timestamp BETWEEN %s AND %s",
+        $number, $session, $start_datetime, $end_datetime
+    ));
 
-    if ($is_agent) {
-        $agent = $wpdb->get_row($wpdb->prepare("SELECT id, per_number_limit FROM $table_agents WHERE user_id = %d", $current_user->ID));
-        if ($agent && $agent->per_number_limit > 0) {
-            $limit_amount = $agent->per_number_limit;
-            $number_total_amount = $wpdb->get_var($wpdb->prepare(
-                "SELECT SUM(amount) FROM $table_entries WHERE lottery_number = %s AND draw_session = %s AND agent_id = %d AND timestamp BETWEEN %s AND %s",
-                $number, $session, $agent->id, $start_datetime, $end_datetime
+    if ($number_total_amount > $global_limit) {
+        // Limit has been exceeded. Decide what to do.
+
+        // Action 1: Create a cover request (for Admins, if enabled)
+        if ($is_admin_or_manager && $is_cover_system_enabled) {
+            $cover_amount = $number_total_amount - $global_limit;
+
+            $existing_request_id = $wpdb->get_var($wpdb->prepare(
+                "SELECT id FROM $table_cover_requests WHERE lottery_number = %s AND draw_date = %s AND draw_session = %s",
+                $number, $date, $session
             ));
+
+            if ($existing_request_id) {
+                $wpdb->update($table_cover_requests, ['amount' => $cover_amount], ['id' => $existing_request_id]);
+            } else {
+                $wpdb->insert($table_cover_requests, [
+                    'from_agent_id'  => 0, // 0 = from the house/admin
+                    'lottery_number' => $number,
+                    'amount'         => $cover_amount,
+                    'draw_date'      => $date,
+                    'draw_session'   => $session,
+                    'status'         => 'pending'
+                ]);
+            }
+            return true; // Cover request created/updated, not an error condition for the user.
         }
-    } else {
-        $limit_amount = get_option('custom_lottery_number_limit', 5000);
-        $number_total_amount = $wpdb->get_var($wpdb->prepare(
-            "SELECT SUM(amount) FROM $table_entries WHERE lottery_number = %s AND draw_session = %s AND timestamp BETWEEN %s AND %s",
-            $number, $session, $start_datetime, $end_datetime
-        ));
+
+        // Action 2: Block the number globally (if auto-blocking is on)
+        if ($is_auto_blocking_enabled) {
+            $is_already_blocked = $wpdb->get_var($wpdb->prepare(
+                "SELECT id FROM $table_limits WHERE lottery_number = %s AND draw_date = %s AND draw_session = %s",
+                $number, $date, $session
+            ));
+
+            if (!$is_already_blocked) {
+                $wpdb->insert($table_limits, [
+                    'lottery_number' => $number,
+                    'draw_date'      => $date,
+                    'draw_session'   => $session,
+                    'limit_type'     => 'auto'
+                ]);
+            }
+            return new WP_Error('number_blocked', "The number {$number} has been blocked as it exceeded the limit.");
+        }
+
+        // If auto-blocking is off and it's not a cover situation, the number is simply over limit but not blocked.
     }
 
-    if ($limit_amount > 0 && $number_total_amount >= $limit_amount) {
-        $is_already_blocked = $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM $table_limits WHERE lottery_number = %s AND draw_date = %s AND draw_session = %s",
-            $number, $date, $session
-        ));
-
-        if (!$is_already_blocked) {
-            $wpdb->insert($table_limits, [
-                'lottery_number' => $number,
-                'draw_date'      => $date,
-                'draw_session'   => $session,
-                'limit_type'     => 'auto'
-            ]);
-        }
-    }
+    return true; // Number is within limits.
 }
 
 /**

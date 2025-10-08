@@ -13,7 +13,6 @@ function custom_lottery_get_dashboard_data_callback() {
 
     global $wpdb;
     $table_entries = $wpdb->prefix . 'lotto_entries';
-    $table_agents = $wpdb->prefix . 'lotto_agents';
     $range = sanitize_text_field($_POST['range']);
     $timezone = new DateTimeZone('Asia/Yangon');
 
@@ -31,30 +30,26 @@ function custom_lottery_get_dashboard_data_callback() {
             $end_date = new DateTime('today', $timezone);
     }
 
-    $where_clauses = ["timestamp BETWEEN %s AND %s"];
-    $params = [$start_date->format('Y-m-d 00:00:00'), $end_date->format('Y-m-d 23:59:59')];
-
-    $current_user = wp_get_current_user();
-    if (in_array('commission_agent', (array) $current_user->roles) && get_option('custom_lottery_enable_commission_agent_system')) {
-        $agent_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_agents WHERE user_id = %d", $current_user->ID));
-        if ($agent_id) {
-            $where_clauses[] = "agent_id = %d";
-            $params[] = $agent_id;
-        } else {
-            // Agent has no record, so they see no data.
-            wp_send_json_success(['labels' => [], 'sales' => [], 'payouts' => []]);
-            return;
-        }
-    }
-
-    $where_sql = "WHERE " . implode(" AND ", $where_clauses);
-
-    $sales_query = "SELECT DATE(timestamp) as entry_date, SUM(amount) as total_sales FROM $table_entries $where_sql GROUP BY entry_date ORDER BY entry_date ASC";
-    $sales_data = $wpdb->get_results($wpdb->prepare($sales_query, ...$params), ARRAY_A);
+    $sales_data = $wpdb->get_results($wpdb->prepare(
+        "SELECT DATE(timestamp) as entry_date, SUM(amount) as total_sales
+         FROM $table_entries
+         WHERE timestamp BETWEEN %s AND %s
+         GROUP BY entry_date
+         ORDER BY entry_date ASC",
+        $start_date->format('Y-m-d 00:00:00'),
+        $end_date->format('Y-m-d 23:59:59')
+    ), ARRAY_A);
 
     $payout_rate = (int) get_option('custom_lottery_payout_rate', 80);
-    $payout_query = "SELECT DATE(timestamp) as entry_date, SUM(amount * $payout_rate) as total_payouts FROM $table_entries $where_sql AND is_winner = 1 GROUP BY entry_date ORDER BY entry_date ASC";
-    $payout_data = $wpdb->get_results($wpdb->prepare($payout_query, ...$params), ARRAY_A);
+    $payout_data = $wpdb->get_results($wpdb->prepare(
+        "SELECT DATE(timestamp) as entry_date, SUM(amount * $payout_rate) as total_payouts
+         FROM $table_entries
+         WHERE is_winner = 1 AND timestamp BETWEEN %s AND %s
+         GROUP BY entry_date
+         ORDER BY entry_date ASC",
+        $start_date->format('Y-m-d 00:00:00'),
+        $end_date->format('Y-m-d 23:59:59')
+    ), ARRAY_A);
 
     $labels = [];
     $sales = [];
@@ -85,28 +80,17 @@ function custom_lottery_search_customers_callback() {
 
     global $wpdb;
     $table_customers = $wpdb->prefix . 'lotto_customers';
-    $table_agents = $wpdb->prefix . 'lotto_agents';
 
     $term = isset($_REQUEST['term']) ? sanitize_text_field($_REQUEST['term']) : '';
+
     if (empty($term)) {
         wp_send_json([]);
     }
 
-    $current_user = wp_get_current_user();
-    $base_query = "SELECT customer_name, phone FROM $table_customers WHERE phone LIKE %s";
-    $params = ['%' . $wpdb->esc_like($term) . '%'];
-
-    // If the user is a commission agent, only search their own customers
-    if (in_array('commission_agent', (array) $current_user->roles) && get_option('custom_lottery_enable_commission_agent_system')) {
-        $agent_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_agents WHERE user_id = %d", $current_user->ID));
-        if ($agent_id) {
-            $base_query .= " AND agent_id = %d";
-            $params[] = $agent_id;
-        }
-    }
-
-    $base_query .= " LIMIT 10";
-    $results = $wpdb->get_results($wpdb->prepare($base_query, ...$params));
+    $results = $wpdb->get_results($wpdb->prepare(
+        "SELECT customer_name, phone FROM $table_customers WHERE phone LIKE %s LIMIT 10",
+        '%' . $wpdb->esc_like($term) . '%'
+    ));
 
     $suggestions = [];
     foreach ($results as $result) {
@@ -137,10 +121,10 @@ function custom_lottery_submit_entries_callback() {
     $current_datetime = new DateTime('now', $timezone);
     $current_date = $current_datetime->format('Y-m-d');
 
-    // Get current user and check if they are an agent
+    // Get current user and check if they are a commission agent
     $current_user = wp_get_current_user();
     $agent_id = null;
-    if (in_array('commission_agent', (array) $current_user->roles) && get_option('custom_lottery_enable_commission_agent_system')) {
+    if (in_array('commission_agent', (array) $current_user->roles)) {
         $agent_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_agents WHERE user_id = %d", $current_user->ID));
     }
 
@@ -154,7 +138,7 @@ function custom_lottery_submit_entries_callback() {
     $entries = json_decode($entries_json, true);
 
     if (empty($customer_name) || empty($phone) || empty($draw_session) || json_last_error() !== JSON_ERROR_NONE) {
-        wp_send_json_error('Missing or invalid form data.');
+        wp_send_json_error(['message' => 'Missing or invalid form data.']);
         return;
     }
 
@@ -164,7 +148,9 @@ function custom_lottery_submit_entries_callback() {
     $total_amount = 0;
     $error_messages = [];
     $processed_entries_for_receipt = [];
+    $unique_numbers_in_batch = [];
 
+    // First pass: Validate and insert all entries
     foreach ($entries as $entry) {
         $lottery_number = sanitize_text_field($entry['number']);
         $amount = absint($entry['amount']);
@@ -175,64 +161,72 @@ function custom_lottery_submit_entries_callback() {
             continue;
         }
 
-        // Process the main number
-        $is_blocked = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_limits WHERE lottery_number = %s AND draw_date = %s AND draw_session = %s", $lottery_number, $current_date, $draw_session));
+        // Check if number is manually blocked (this check is always active)
+        $is_blocked = $wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM $table_limits WHERE lottery_number = %s AND draw_date = %s AND draw_session = %s AND limit_type = 'manual'",
+            $lottery_number, $current_date, $draw_session
+        ));
         if ($is_blocked) {
-            $error_messages[] = "Number {$lottery_number} is blocked. Skipping.";
+            $error_messages[] = "Number {$lottery_number} is manually blocked.";
             continue;
         }
 
         $entry_data = [
-            'customer_name' => $customer_name,
-            'phone' => $phone,
-            'lottery_number' => $lottery_number,
-            'amount' => $amount,
-            'draw_session' => $draw_session,
-            'timestamp' => $current_datetime->format('Y-m-d H:i:s'),
-            'agent_id' => $agent_id
+            'customer_name' => $customer_name, 'phone' => $phone, 'lottery_number' => $lottery_number, 'amount' => $amount, 'draw_session' => $draw_session, 'timestamp' => $current_datetime->format('Y-m-d H:i:s'), 'agent_id' => $agent_id
         ];
         $wpdb->insert($table_entries, $entry_data);
-        check_and_auto_block_number($lottery_number, $draw_session, $current_date);
         $success_count++;
         $total_amount += $amount;
         $processed_entries_for_receipt[] = ['lottery_number' => $lottery_number, 'amount' => $amount, 'is_reverse' => false];
+        $unique_numbers_in_batch[$lottery_number] = true;
 
         // Process the reversed number if applicable
         if ($is_reverse) {
             $reversed_number = strrev($lottery_number);
             if ($lottery_number !== $reversed_number) {
-                $is_rev_blocked = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_limits WHERE lottery_number = %s AND draw_date = %s AND draw_session = %s", $reversed_number, $current_date, $draw_session));
+                 $is_rev_blocked = $wpdb->get_var($wpdb->prepare(
+                    "SELECT id FROM $table_limits WHERE lottery_number = %s AND draw_date = %s AND draw_session = %s AND limit_type = 'manual'",
+                    $reversed_number, $current_date, $draw_session
+                ));
                 if ($is_rev_blocked) {
-                    $error_messages[] = "Reversed number {$reversed_number} is blocked. Skipping.";
+                    $error_messages[] = "Reversed number {$reversed_number} is manually blocked.";
                     continue;
                 }
                 $reversed_entry_data = [
-                    'customer_name' => $customer_name,
-                    'phone' => $phone,
-                    'lottery_number' => $reversed_number,
-                    'amount' => $amount,
-                    'draw_session' => $draw_session,
-                    'timestamp' => $current_datetime->format('Y-m-d H:i:s'),
-                    'agent_id' => $agent_id
+                    'customer_name' => $customer_name, 'phone' => $phone, 'lottery_number' => $reversed_number, 'amount' => $amount, 'draw_session' => $draw_session, 'timestamp' => $current_datetime->format('Y-m-d H:i:s'), 'agent_id' => $agent_id
                 ];
                 $wpdb->insert($table_entries, $reversed_entry_data);
-                check_and_auto_block_number($reversed_number, $draw_session, $current_date);
                 $success_count++;
                 $total_amount += $amount;
                 $processed_entries_for_receipt[] = ['lottery_number' => $reversed_number, 'amount' => $amount, 'is_reverse' => true];
+                $unique_numbers_in_batch[$reversed_number] = true;
             }
+        }
+    }
+
+    // Second pass: After all entries are in, check limits for all affected numbers
+    foreach (array_keys($unique_numbers_in_batch) as $number) {
+        $result = check_and_process_number_limit($number, $draw_session, $current_date);
+        if (is_wp_error($result)) {
+            $error_messages[] = $result->get_error_message();
         }
     }
 
     $final_message = "Transaction complete. {$success_count} entries added successfully.";
     if (!empty($error_messages)) {
-        $final_message .= " The following errors occurred: " . implode(' ', $error_messages);
-        wp_send_json_error($final_message);
+        $final_message .= " Warnings: " . implode(' ', $error_messages);
+        wp_send_json_success([
+            'message' => $final_message,
+            'entries' => $processed_entries_for_receipt,
+            'total_amount' => $total_amount,
+            'has_errors' => true
+        ]);
     } else {
         wp_send_json_success([
             'message' => $final_message,
             'entries' => $processed_entries_for_receipt,
             'total_amount' => $total_amount,
+            'has_errors' => false
         ]);
     }
 }
@@ -365,3 +359,64 @@ function custom_lottery_manual_import_winning_numbers_handler() {
     wp_send_json_success(['message' => "Manual import complete. {$imported_count} new winning numbers were added."]);
 }
 add_action('wp_ajax_manual_import_winning_numbers', 'custom_lottery_manual_import_winning_numbers_handler');
+
+/**
+ * AJAX handler for assigning a cover agent to a request.
+ */
+function custom_lottery_assign_cover_agent_callback() {
+    check_ajax_referer('cover_management_nonce', 'nonce');
+
+    global $wpdb;
+    $table_cover_requests = $wpdb->prefix . 'lotto_cover_requests';
+
+    $request_id = isset($_POST['request_id']) ? absint($_POST['request_id']) : 0;
+    $agent_id = isset($_POST['agent_id']) ? absint($_POST['agent_id']) : 0;
+
+    if (empty($request_id) || empty($agent_id)) {
+        wp_send_json_error(['message' => 'Invalid request or agent ID.']);
+        return;
+    }
+
+    $updated = $wpdb->update(
+        $table_cover_requests,
+        ['to_agent_id' => $agent_id, 'status' => 'assigned'],
+        ['id' => $request_id]
+    );
+
+    if ($updated) {
+        wp_send_json_success(['message' => 'Agent assigned successfully.']);
+    } else {
+        wp_send_json_error(['message' => 'Failed to assign agent.']);
+    }
+}
+add_action('wp_ajax_assign_cover_agent', 'custom_lottery_assign_cover_agent_callback');
+
+/**
+ * AJAX handler for a cover agent to confirm a request.
+ */
+function custom_lottery_confirm_cover_callback() {
+    check_ajax_referer('cover_management_nonce', 'nonce');
+
+    global $wpdb;
+    $table_cover_requests = $wpdb->prefix . 'lotto_cover_requests';
+
+    $request_id = isset($_POST['request_id']) ? absint($_POST['request_id']) : 0;
+
+    if (empty($request_id)) {
+        wp_send_json_error(['message' => 'Invalid request ID.']);
+        return;
+    }
+
+    $updated = $wpdb->update(
+        $table_cover_requests,
+        ['status' => 'confirmed', 'responded_at' => current_time('mysql')],
+        ['id' => $request_id]
+    );
+
+    if ($updated) {
+        wp_send_json_success(['message' => 'Cover request confirmed.']);
+    } else {
+        wp_send_json_error(['message' => 'Failed to confirm cover request.']);
+    }
+}
+add_action('wp_ajax_confirm_cover', 'custom_lottery_confirm_cover_callback');

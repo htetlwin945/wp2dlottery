@@ -37,42 +37,6 @@ class Lotto_Entries_List_Table extends WP_List_Table {
         ];
     }
 
-    protected function extra_tablenav($which) {
-        if ($which == 'top') {
-            $current_user = wp_get_current_user();
-            if (in_array('commission_agent', (array) $current_user->roles)) {
-                return;
-            }
-
-            global $wpdb;
-            $table_agents = $wpdb->prefix . 'lotto_agents';
-            $agents = $wpdb->get_results("SELECT id, user_id FROM $table_agents WHERE agent_type = 'commission'");
-
-            $selected_agent = isset($_GET['filter_agent_id']) ? absint($_GET['filter_agent_id']) : '';
-
-            echo '<div class="alignleft actions">';
-            echo '<label for="filter-by-agent" class="screen-reader-text">' . __('Filter by agent', 'custom-lottery') . '</label>';
-            echo '<select name="filter_agent_id" id="filter-by-agent">';
-            echo '<option value="">' . __('All Agents', 'custom-lottery') . '</option>';
-
-            foreach ($agents as $agent) {
-                $user_info = get_userdata($agent->user_id);
-                if ($user_info) {
-                    printf(
-                        '<option value="%s"%s>%s</option>',
-                        esc_attr($agent->id),
-                        selected($selected_agent, $agent->id, false),
-                        esc_html($user_info->display_name)
-                    );
-                }
-            }
-
-            echo '</select>';
-            submit_button(__('Filter'), 'button', 'filter_action', false, ['id' => 'agent-query-submit']);
-            echo '</div>';
-        }
-    }
-
     public function column_default($item, $column_name) {
         switch ($column_name) {
             case 'total_amount':
@@ -156,7 +120,6 @@ class Lotto_Entries_List_Table extends WP_List_Table {
     public function prepare_items() {
         global $wpdb;
         $table_name = $wpdb->prefix . 'lotto_entries';
-        $table_agents = $wpdb->prefix . 'lotto_agents';
         $per_page = 20;
 
         $columns = $this->get_columns();
@@ -191,23 +154,6 @@ class Lotto_Entries_List_Table extends WP_List_Table {
         if ($filter_session !== 'all') {
             $where_clauses[] = "draw_session = %s";
             $query_params[] = $filter_session;
-        }
-
-        // Agent filter
-        $current_user = wp_get_current_user();
-        if (in_array('commission_agent', (array) $current_user->roles) && get_option('custom_lottery_enable_commission_agent_system')) {
-            $agent_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_agents WHERE user_id = %d", $current_user->ID));
-            if ($agent_id) {
-                $where_clauses[] = "agent_id = %d";
-                $query_params[] = $agent_id;
-            } else {
-                // This agent has no agent record, so they should see no entries.
-                $where_clauses[] = "1 = 0";
-            }
-        } elseif (current_user_can('manage_options') && !empty($_GET['filter_agent_id'])) {
-            $agent_id = absint($_GET['filter_agent_id']);
-            $where_clauses[] = "agent_id = %d";
-            $query_params[] = $agent_id;
         }
 
         $where_sql = 'WHERE ' . implode(' AND ', $where_clauses);

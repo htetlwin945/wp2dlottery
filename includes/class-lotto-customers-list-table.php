@@ -51,46 +51,9 @@ class Lotto_Customers_List_Table extends WP_List_Table {
         return sprintf('<input type="checkbox" name="customer_id[]" value="%s" />', $item['id']);
     }
 
-    protected function extra_tablenav($which) {
-        if ($which == 'top') {
-            $current_user = wp_get_current_user();
-            if (in_array('commission_agent', (array) $current_user->roles)) {
-                return;
-            }
-
-            global $wpdb;
-            $table_agents = $wpdb->prefix . 'lotto_agents';
-            $agents = $wpdb->get_results("SELECT id, user_id FROM $table_agents WHERE agent_type = 'commission'");
-
-            $selected_agent = isset($_GET['filter_agent_id']) ? absint($_GET['filter_agent_id']) : '';
-
-            echo '<div class="alignleft actions">';
-            echo '<label for="filter-by-agent" class="screen-reader-text">' . __('Filter by agent', 'custom-lottery') . '</label>';
-            echo '<select name="filter_agent_id" id="filter-by-agent">';
-            echo '<option value="">' . __('All Agents', 'custom-lottery') . '</option>';
-
-            foreach ($agents as $agent) {
-                $user_info = get_userdata($agent->user_id);
-                if ($user_info) {
-                    printf(
-                        '<option value="%s"%s>%s</option>',
-                        esc_attr($agent->id),
-                        selected($selected_agent, $agent->id, false),
-                        esc_html($user_info->display_name)
-                    );
-                }
-            }
-
-            echo '</select>';
-            submit_button(__('Filter'), 'button', 'filter_action', false, ['id' => 'agent-query-submit']);
-            echo '</div>';
-        }
-    }
-
     public function prepare_items() {
         global $wpdb;
         $table_name = $wpdb->prefix . 'lotto_customers';
-        $table_agents = $wpdb->prefix . 'lotto_agents';
         $per_page = 20;
 
         $columns = $this->get_columns();
@@ -102,30 +65,8 @@ class Lotto_Customers_List_Table extends WP_List_Table {
         $orderby = isset($_GET['orderby']) && in_array($_GET['orderby'], array_keys($sortable_columns)) ? sanitize_key($_GET['orderby']) : 'last_seen';
         $order = isset($_GET['order']) && in_array(strtolower($_GET['order']), ['asc', 'desc']) ? strtolower($_GET['order']) : 'desc';
 
-        $where_clauses = [];
-        $query_params = [];
-
-        // Agent filter
-        $current_user = wp_get_current_user();
-        if (in_array('commission_agent', (array) $current_user->roles) && get_option('custom_lottery_enable_commission_agent_system')) {
-            $agent_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_agents WHERE user_id = %d", $current_user->ID));
-            if ($agent_id) {
-                $where_clauses[] = "agent_id = %d";
-                $query_params[] = $agent_id;
-            } else {
-                $where_clauses[] = "1 = 0";
-            }
-        } elseif (current_user_can('manage_options') && !empty($_GET['filter_agent_id'])) {
-            $agent_id = absint($_GET['filter_agent_id']);
-            $where_clauses[] = "agent_id = %d";
-            $query_params[] = $agent_id;
-        }
-
-        $where_sql = !empty($where_clauses) ? 'WHERE ' . implode(' AND ', $where_clauses) : '';
-
         $current_page = $this->get_pagenum();
-        $total_items_query = "SELECT COUNT(id) FROM $table_name $where_sql";
-        $total_items = $wpdb->get_var($wpdb->prepare($total_items_query, $query_params));
+        $total_items = $wpdb->get_var("SELECT COUNT(id) FROM $table_name");
 
         $this->set_pagination_args([
             'total_items' => $total_items,
@@ -133,12 +74,12 @@ class Lotto_Customers_List_Table extends WP_List_Table {
         ]);
 
         $offset = ($current_page - 1) * $per_page;
-        $items_query = "SELECT * FROM $table_name $where_sql ORDER BY $orderby $order LIMIT %d OFFSET %d";
-        $final_query_params = array_merge($query_params, [$per_page, $offset]);
-
         $this->items = $wpdb->get_results(
-            $wpdb->prepare($items_query, $final_query_params),
-            ARRAY_A
+            $wpdb->prepare(
+                "SELECT * FROM $table_name ORDER BY $orderby $order LIMIT %d OFFSET %d",
+                $per_page,
+                $offset
+            ), ARRAY_A
         );
     }
 
