@@ -9,36 +9,53 @@ if ( ! defined( 'WPINC' ) ) {
  * Register the admin menu pages.
  */
 function custom_lottery_admin_menu() {
+    // Main Menu Item - Points to the SPA Dashboard
     add_menu_page(
-        __( 'Lottery', 'custom-lottery' ),
-        __( 'Lottery', 'custom-lottery' ),
-        'manage_options',
-        'custom-lottery-dashboard',
-        'custom_lottery_dashboard_page_callback',
+        __( 'Lottery SPA', 'custom-lottery' ),
+        __( 'Lottery SPA', 'custom-lottery' ),
+        'enter_lottery_numbers',
+        'custom-lottery-spa', // Slug for the main SPA page
+        'custom_lottery_spa_page_callback', // Callback for the SPA dashboard
         'dashicons-tickets-alt',
         20
     );
 
+    // Submenu Item for SPA Dashboard
     add_submenu_page(
-        'custom-lottery-dashboard',
+        'custom-lottery-spa',
         __( 'Dashboard', 'custom-lottery' ),
         __( 'Dashboard', 'custom-lottery' ),
+        'enter_lottery_numbers',
+        'custom-lottery-spa', // Must match parent slug to be the default page
+        'custom_lottery_spa_page_callback'
+    );
+
+    // Submenu Item for SPA Customers
+    add_submenu_page(
+        'custom-lottery-spa',
+        __( 'Customers', 'custom-lottery' ),
+        __( 'Customers', 'custom-lottery' ),
         'manage_options',
-        'custom-lottery-dashboard',
-        'custom_lottery_dashboard_page_callback'
+        'custom-lottery-spa-customers', // Slug for SPA customers page
+        'custom_lottery_spa_customers_page_callback' // Callback for SPA customers
     );
 
+    // Submenu Item for SPA Lottery Entry
     add_submenu_page(
-        'custom-lottery-dashboard',
+        'custom-lottery-spa',
         __( 'Lottery Entry', 'custom-lottery' ),
         __( 'Lottery Entry', 'custom-lottery' ),
-        'enter_lottery_numbers', // Use custom capability
-        'custom-lottery-entry',
-        'custom_lottery_entry_page_callback'
+        'enter_lottery_numbers',
+        'custom-lottery-spa-entry', // Slug for SPA entry page
+        'custom_lottery_spa_entry_page_callback' // Callback
     );
 
+    // Keep the old pages but hide them from the menu by setting parent to null
+    // This allows them to be accessible via direct URL if needed for a transition period,
+    // but cleans up the main navigation.
+
     add_submenu_page(
-        'custom-lottery-dashboard',
+        'custom-lottery-spa',
         __( 'Reports', 'custom-lottery' ),
         __( 'Reports', 'custom-lottery' ),
         'manage_options',
@@ -47,7 +64,7 @@ function custom_lottery_admin_menu() {
     );
 
     add_submenu_page(
-        'custom-lottery-dashboard',
+        'custom-lottery-spa',
         __( 'Advanced Reports', 'custom-lottery' ),
         __( 'Advanced Reports', 'custom-lottery' ),
         'manage_options',
@@ -56,7 +73,7 @@ function custom_lottery_admin_menu() {
     );
 
     add_submenu_page(
-        'custom-lottery-dashboard',
+        'custom-lottery-spa',
         __( 'Payouts', 'custom-lottery' ),
         __( 'Payouts', 'custom-lottery' ),
         'manage_options',
@@ -65,7 +82,7 @@ function custom_lottery_admin_menu() {
     );
 
     add_submenu_page(
-        'custom-lottery-dashboard',
+        'custom-lottery-spa',
         __( 'Number Limiting', 'custom-lottery' ),
         __( 'Number Limiting', 'custom-lottery' ),
         'manage_options',
@@ -74,7 +91,7 @@ function custom_lottery_admin_menu() {
     );
 
     add_submenu_page(
-        'custom-lottery-dashboard',
+        'custom-lottery-spa',
         __( 'All Entries', 'custom-lottery' ),
         __( 'All Entries', 'custom-lottery' ),
         'manage_options',
@@ -83,40 +100,12 @@ function custom_lottery_admin_menu() {
     );
 
     add_submenu_page(
-        'custom-lottery-dashboard',
+        'custom-lottery-spa',
         __( 'Tools', 'custom-lottery' ),
         __( 'Tools', 'custom-lottery' ),
         'manage_options',
         'custom-lottery-tools',
         'custom_lottery_tools_page_callback'
-    );
-
-    add_submenu_page(
-        'custom-lottery-dashboard',
-        __( 'Customers', 'custom-lottery' ),
-        __( 'Customers', 'custom-lottery' ),
-        'manage_options',
-        'custom-lottery-customers',
-        'custom_lottery_customers_page_callback'
-    );
-    // New SPA Page
-    add_submenu_page(
-        'custom-lottery-dashboard',
-        __( 'Lottery SPA', 'custom-lottery' ),
-        __( 'Lottery SPA', 'custom-lottery' ),
-        'enter_lottery_numbers', // Capability check
-        'custom-lottery-spa',
-        'custom_lottery_spa_page_callback'
-    );
-
-    // Add the new SPA-based customers page
-    add_submenu_page(
-        'custom-lottery-dashboard', // Parent
-        'SPA Customers', // Page Title
-        'SPA Customers', // Menu Title
-        'manage_options', // Capability
-        'custom-lottery-spa-customers', // Slug
-        'custom_lottery_spa_customers_page_callback' // Callback
     );
 }
 add_action( 'admin_menu', 'custom_lottery_admin_menu' );
@@ -143,94 +132,11 @@ function custom_lottery_spa_customers_page_callback() {
 }
 
 /**
- * Callback for the Customers page.
+ * Callback for the SPA Lottery Entry page.
  */
-function custom_lottery_customers_page_callback() {
-    global $wpdb;
-    $table_name = $wpdb->prefix . 'lotto_customers';
-    $page_slug = 'custom-lottery-customers';
-
-    $action = isset($_REQUEST['action']) ? sanitize_key($_REQUEST['action']) : 'list';
-    $customer_id = isset($_REQUEST['customer_id']) ? absint($_REQUEST['customer_id']) : 0;
-
-    // Handle Add/Edit form submission
-    if (isset($_POST['submit_customer']) && check_admin_referer('cl_save_customer_action', 'cl_save_customer_nonce')) {
-        $customer_id = absint($_POST['customer_id']);
-        $customer_name = sanitize_text_field($_POST['customer_name']);
-        $phone = sanitize_text_field($_POST['phone']);
-
-        $data = ['customer_name' => $customer_name, 'phone' => $phone];
-
-        if ($customer_id > 0) { // Update existing customer
-            $original_data = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE id = %d", $customer_id), ARRAY_A);
-            if ($wpdb->update($table_name, $data, ['id' => $customer_id])) {
-                custom_lottery_log_action('customer_edited', ['customer_id' => $customer_id, 'original_data' => $original_data, 'new_data' => $data]);
-                echo '<div class="updated"><p>' . esc_html__('Customer updated successfully.', 'custom-lottery') . '</p></div>';
-            }
-        } else { // Add new customer
-            $data['last_seen'] = current_time('mysql');
-            if ($wpdb->insert($table_name, $data)) {
-                $new_customer_id = $wpdb->insert_id;
-                custom_lottery_log_action('customer_added', ['customer_id' => $new_customer_id, 'data' => $data]);
-                echo '<div class="updated"><p>' . esc_html__('Customer added successfully.', 'custom-lottery') . '</p></div>';
-            }
-        }
-        $action = 'list'; // Go back to the list view
-    }
-
-    // Handle deletion
-    if ($action === 'delete' && $customer_id > 0) {
-        $nonce = isset($_REQUEST['_wpnonce']) ? $_REQUEST['_wpnonce'] : '';
-        if (wp_verify_nonce($nonce, 'cl_delete_customer_' . $customer_id)) {
-            $customer_data = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE id = %d", $customer_id), ARRAY_A);
-            if ($wpdb->delete($table_name, ['id' => $customer_id])) {
-                custom_lottery_log_action('customer_deleted', ['customer_id' => $customer_id, 'deleted_data' => $customer_data]);
-                echo '<div class="updated"><p>' . esc_html__('Customer deleted successfully.', 'custom-lottery') . '</p></div>';
-            }
-        }
-        $action = 'list'; // Go back to the list view
-    }
-
-    // Display add/edit form or the list table
-    if ($action === 'add' || ($action === 'edit' && $customer_id > 0)) {
-        $customer = null;
-        if ($customer_id > 0) {
-            $customer = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE id = %d", $customer_id));
-        }
-        $form_title = $customer ? __('Edit Customer', 'custom-lottery') : __('Add New Customer', 'custom-lottery');
-        $button_text = $customer ? __('Save Changes', 'custom-lottery') : __('Add Customer', 'custom-lottery');
-        ?>
-        <div class="wrap">
-            <h1><?php echo esc_html($form_title); ?></h1>
-            <a href="?page=<?php echo esc_attr($page_slug); ?>" class="button">&larr; <?php esc_html_e('Back to Customers List', 'custom-lottery'); ?></a>
-            <form method="post" style="margin-top: 20px;">
-                <input type="hidden" name="customer_id" value="<?php echo esc_attr($customer_id); ?>">
-                <?php wp_nonce_field('cl_save_customer_action', 'cl_save_customer_nonce'); ?>
-                <table class="form-table">
-                    <tr>
-                        <th scope="row"><label for="customer_name"><?php esc_html_e('Customer Name', 'custom-lottery'); ?></label></th>
-                        <td><input type="text" id="customer_name" name="customer_name" value="<?php echo $customer ? esc_attr($customer->customer_name) : ''; ?>" class="regular-text" required></td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><label for="phone"><?php esc_html_e('Phone', 'custom-lottery'); ?></label></th>
-                        <td><input type="text" id="phone" name="phone" value="<?php echo $customer ? esc_attr($customer->phone) : ''; ?>" class="regular-text" required></td>
-                    </tr>
-                </table>
-                <?php submit_button($button_text, 'primary', 'submit_customer'); ?>
-            </form>
-        </div>
-        <?php
-    } else {
-        echo '<div class="wrap">';
-        echo '<h1 class="wp-heading-inline">' . esc_html__('Customers', 'custom-lottery') . '</h1>';
-        echo '<a href="?page=' . esc_attr($page_slug) . '&action=add" class="page-title-action">' . esc_html__('Add New', 'custom-lottery') . '</a>';
-
-        $customers_list_table = new Lotto_Customers_List_Table();
-        $customers_list_table->prepare_items();
-        $customers_list_table->display();
-
-        echo '</div>';
-    }
+function custom_lottery_spa_entry_page_callback() {
+    // We don't need to pass any initial props for a new entry form.
+    custom_lottery_render_inertia('LotteryEntry/Index', []);
 }
 
 /**
@@ -279,390 +185,6 @@ function custom_lottery_tools_page_callback() {
                 </button>
             </form>
         </div>
-    </div>
-    <?php
-}
-
-/**
- * Callback function for the Dashboard page.
- */
-function custom_lottery_dashboard_page_callback() {
-    ?>
-    <div class="wrap">
-        <h1><?php echo esc_html__('Lottery Dashboard', 'custom-lottery'); ?></h1>
-
-        <div class="dashboard-controls">
-            <label for="dashboard-range-selector"><?php echo esc_html__('Select Date Range:', 'custom-lottery'); ?></label>
-            <select id="dashboard-range-selector">
-                <option value="last_7_days" selected><?php echo esc_html__('Last 7 Days', 'custom-lottery'); ?></option>
-                <option value="this_month"><?php echo esc_html__('This Month', 'custom-lottery'); ?></option>
-            </select>
-            <?php wp_nonce_field('dashboard_nonce', 'dashboard_nonce'); ?>
-        </div>
-
-        <div class="dashboard-charts" style="width: 80%; margin-top: 20px;">
-            <div class="chart-container" style="position: relative; height:40vh; width:80vw; margin-bottom: 40px;">
-                <h2><?php echo esc_html__('Sales vs. Payouts', 'custom-lottery'); ?></h2>
-                <canvas id="salesPayoutsChart"></canvas>
-            </div>
-            <div class="chart-container" style="position: relative; height:40vh; width:80vw;">
-                <h2><?php echo esc_html__('Net Profit Over Time', 'custom-lottery'); ?></h2>
-                <canvas id="netProfitChart"></canvas>
-            </div>
-        </div>
-    </div>
-    <?php
-}
-
-/**
- * Callback function for the Advanced Reports page.
- */
-function custom_lottery_advanced_reports_page_callback() {
-    global $wpdb;
-    $table_entries = $wpdb->prefix . 'lotto_entries';
-
-    $timezone = new DateTimeZone('Asia/Yangon');
-    $default_start_date = (new DateTime('first day of this month', $timezone))->format('Y-m-d');
-    $default_end_date = (new DateTime('last day of this month', $timezone))->format('Y-m-d');
-    $start_date = isset($_GET['start_date']) ? sanitize_text_field($_GET['start_date']) : $default_start_date;
-    $end_date = isset($_GET['end_date']) ? sanitize_text_field($_GET['end_date']) : $default_end_date;
-
-    $query_start_date = $start_date . ' 00:00:00';
-    $query_end_date = $end_date . ' 23:59:59';
-
-    $top_customers = $wpdb->get_results($wpdb->prepare(
-        "SELECT customer_name, phone, SUM(amount) as total_spent FROM $table_entries WHERE timestamp BETWEEN %s AND %s GROUP BY customer_name, phone ORDER BY total_spent DESC LIMIT 20",
-        $query_start_date, $query_end_date
-    ));
-
-    $hot_numbers = $wpdb->get_results($wpdb->prepare(
-        "SELECT lottery_number, COUNT(id) as purchase_count FROM $table_entries WHERE timestamp BETWEEN %s AND %s GROUP BY lottery_number ORDER BY purchase_count DESC LIMIT 10",
-        $query_start_date, $query_end_date
-    ));
-
-    $cold_numbers = $wpdb->get_results($wpdb->prepare(
-        "SELECT lottery_number, COUNT(id) as purchase_count FROM $table_entries WHERE timestamp BETWEEN %s AND %s GROUP BY lottery_number ORDER BY purchase_count ASC LIMIT 10",
-        $query_start_date, $query_end_date
-    ));
-    ?>
-    <div class="wrap">
-        <h1><?php echo esc_html__('Advanced Reports', 'custom-lottery'); ?></h1>
-        <div class="report-section">
-            <h2><?php echo esc_html__('Top Customers & Hot/Cold Numbers', 'custom-lottery'); ?></h2>
-            <form method="get">
-                <input type="hidden" name="page" value="custom-lottery-advanced-reports">
-                <label for="start-date"><?php echo esc_html__('Start Date:', 'custom-lottery'); ?></label>
-                <input type="date" id="start-date" name="start_date" value="<?php echo esc_attr($start_date); ?>">
-                <label for="end-date"><?php echo esc_html__('End Date:', 'custom-lottery'); ?></label>
-                <input type="date" id="end-date" name="end_date" value="<?php echo esc_attr($end_date); ?>">
-                <button type="submit" class="button"><?php echo esc_html__('View Report', 'custom-lottery'); ?></button>
-            </form>
-
-            <table class="wp-list-table widefat fixed striped" style="margin-top: 20px;">
-                <thead>
-                    <tr>
-                        <th><?php echo esc_html__('Customer Name', 'custom-lottery'); ?></th>
-                        <th><?php echo esc_html__('Phone', 'custom-lottery'); ?></th>
-                        <th><?php echo esc_html__('Total Amount Spent (Kyat)', 'custom-lottery'); ?></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php if ($top_customers) : foreach ($top_customers as $customer) : ?>
-                        <tr>
-                            <td><?php echo esc_html($customer->customer_name); ?></td>
-                            <td><?php echo esc_html($customer->phone); ?></td>
-                            <td><?php echo number_format($customer->total_spent, 2); ?></td>
-                        </tr>
-                    <?php endforeach; else : ?>
-                        <tr><td colspan="3"><?php echo esc_html__('No data found for this period.', 'custom-lottery'); ?></td></tr>
-                    <?php endif; ?>
-                </tbody>
-            </table>
-
-            <div class="report-section" style="margin-top: 40px; display: flex; gap: 40px;">
-                <div style="flex: 1;">
-                    <h3><?php echo esc_html__('Hot Numbers (Most Frequent)', 'custom-lottery'); ?></h3>
-                    <table class="wp-list-table widefat fixed striped">
-                        <thead>
-                            <tr>
-                                <th><?php echo esc_html__('Number', 'custom-lottery'); ?></th>
-                                <th><?php echo esc_html__('Times Purchased', 'custom-lottery'); ?></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if ($hot_numbers) : foreach ($hot_numbers as $number) : ?>
-                                <tr>
-                                    <td><?php echo esc_html($number->lottery_number); ?></td>
-                                    <td><?php echo esc_html($number->purchase_count); ?></td>
-                                </tr>
-                            <?php endforeach; else : ?>
-                                <tr><td colspan="2"><?php echo esc_html__('No data found.', 'custom-lottery'); ?></td></tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-                <div style="flex: 1;">
-                    <h3><?php echo esc_html__('Cold Numbers (Least Frequent)', 'custom-lottery'); ?></h3>
-                    <table class="wp-list-table widefat fixed striped">
-                        <thead>
-                            <tr>
-                                <th><?php echo esc_html__('Number', 'custom-lottery'); ?></th>
-                                <th><?php echo esc_html__('Times Purchased', 'custom-lottery'); ?></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if ($cold_numbers) : foreach ($cold_numbers as $number) : ?>
-                                <tr>
-                                    <td><?php echo esc_html($number->lottery_number); ?></td>
-                                    <td><?php echo esc_html($number->purchase_count); ?></td>
-                                </tr>
-                            <?php endforeach; else : ?>
-                                <tr><td colspan="2"><?php echo esc_html__('No data found.', 'custom-lottery'); ?></td></tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-    <?php
-}
-
-/**
- * Callback function for the All Entries page.
- */
-function custom_lottery_all_entries_page_callback() {
-    global $wpdb;
-    $table_entries = $wpdb->prefix . 'lotto_entries';
-    $action = isset($_REQUEST['action']) ? $_REQUEST['action'] : '';
-    $action2 = isset($_REQUEST['action2']) ? $_REQUEST['action2'] : '';
-
-    // Handle bulk delete
-    $bulk_action = ($action === 'bulk-delete' || $action2 === 'bulk-delete') ? 'bulk-delete' : null;
-    if ($bulk_action && isset($_POST['customer_phone']) && check_admin_referer('bulk-customers')) {
-        $phones_to_delete = array_map('sanitize_text_field', $_POST['customer_phone']);
-
-        $timezone = new DateTimeZone('Asia/Yangon');
-        $current_time = new DateTime('now', $timezone);
-        $default_date = $current_time->format('Y-m-d');
-        $filter_date = isset($_GET['filter_date']) && !empty($_GET['filter_date']) ? sanitize_text_field($_GET['filter_date']) : $default_date;
-
-        $time_1201 = new DateTime($current_time->format('Y-m-d') . ' 12:01:00', $timezone);
-        $time_1630 = new DateTime($current_time->format('Y-m-d') . ' 16:30:00', $timezone);
-        $default_session = '12:01 PM';
-        if ($current_time > $time_1201 && $current_time <= $time_1630) {
-            $default_session = '4:30 PM';
-        }
-        $filter_session = isset($_GET['filter_session']) ? sanitize_text_field($_GET['filter_session']) : $default_session;
-
-        $start_datetime = $filter_date . ' 00:00:00';
-        $end_datetime = $filter_date . ' 23:59:59';
-
-        $placeholders = implode(', ', array_fill(0, count($phones_to_delete), '%s'));
-        $query = "DELETE FROM $table_entries WHERE phone IN ($placeholders) AND timestamp BETWEEN %s AND %s";
-        $params = array_merge($phones_to_delete, [$start_datetime, $end_datetime]);
-
-        if ($filter_session !== 'all') {
-            $query .= " AND draw_session = %s";
-            $params[] = $filter_session;
-        }
-
-        $deleted_count = $wpdb->query($wpdb->prepare($query, $params));
-
-        if ($deleted_count > 0) {
-            custom_lottery_log_action('bulk_entries_deleted', ['phones' => $phones_to_delete, 'filter_date' => $filter_date, 'filter_session' => $filter_session, 'count' => $deleted_count]);
-            echo '<div class="updated"><p>' . sprintf(esc_html__('%d entries deleted successfully.', 'custom-lottery'), $deleted_count) . '</p></div>';
-        }
-    }
-
-    if (isset($_POST['submit_edit_entry']) && check_admin_referer('cl_edit_entry_action', 'cl_edit_entry_nonce')) {
-        $entry_id = absint($_POST['entry_id']);
-        $original_data = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_entries WHERE id = %d", $entry_id), ARRAY_A);
-
-        $data_to_update = [
-            'customer_name' => sanitize_text_field($_POST['customer_name']),
-            'phone' => sanitize_text_field($_POST['phone']),
-            'lottery_number' => sanitize_text_field($_POST['lottery_number']),
-            'amount' => absint($_POST['amount']),
-        ];
-
-        if ($wpdb->update($table_entries, $data_to_update, ['id' => $entry_id])) {
-            custom_lottery_log_action('entry_edited', ['entry_id' => $entry_id, 'original_data' => $original_data, 'new_data' => $data_to_update]);
-            echo '<div class="updated"><p>Entry updated successfully.</p></div>';
-        }
-        $action = '';
-    }
-
-    if ($action === 'delete' && !empty($_GET['entry_id'])) {
-        $entry_id = absint($_GET['entry_id']);
-        if (isset($_GET['_wpnonce']) && wp_verify_nonce($_GET['_wpnonce'], 'cl_delete_entry_' . $entry_id)) {
-            $entry_data = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_entries WHERE id = %d", $entry_id), ARRAY_A);
-            if ($wpdb->delete($table_entries, ['id' => $entry_id])) {
-                custom_lottery_log_action('entry_deleted', ['entry_id' => $entry_id, 'deleted_data' => $entry_data]);
-                echo '<div class="updated"><p>Entry deleted successfully.</p></div>';
-            }
-        }
-        $action = '';
-    }
-
-    if ($action === 'edit' && !empty($_GET['entry_id'])) {
-        $entry_id = absint($_GET['entry_id']);
-        $entry = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_entries WHERE id = %d", $entry_id));
-        if ($entry) {
-            ?>
-            <div class="wrap">
-                <h1><?php echo esc_html__('Edit Lottery Entry', 'custom-lottery'); ?></h1>
-                <form method="post">
-                    <input type="hidden" name="entry_id" value="<?php echo esc_attr($entry->id); ?>">
-                    <?php wp_nonce_field('cl_edit_entry_action', 'cl_edit_entry_nonce'); ?>
-                    <table class="form-table">
-                        <tr>
-                            <th scope="row"><label for="customer_name">Customer Name</label></th>
-                            <td><input type="text" id="customer_name" name="customer_name" value="<?php echo esc_attr($entry->customer_name); ?>" class="regular-text" required></td>
-                        </tr>
-                        <tr>
-                            <th scope="row"><label for="phone">Phone</label></th>
-                            <td><input type="text" id="phone" name="phone" value="<?php echo esc_attr($entry->phone); ?>" class="regular-text" required></td>
-                        </tr>
-                        <tr>
-                            <th scope="row"><label for="lottery_number">Lottery Number</label></th>
-                            <td><input type="text" id="lottery_number" name="lottery_number" value="<?php echo esc_attr($entry->lottery_number); ?>" maxlength="2" pattern="\d{2}" class="small-text" required></td>
-                        </tr>
-                        <tr>
-                            <th scope="row"><label for="amount">Amount</label></th>
-                            <td><input type="number" id="amount" name="amount" value="<?php echo esc_attr($entry->amount); ?>" class="small-text" required></td>
-                        </tr>
-                    </table>
-                    <?php submit_button(__('Save Changes'), 'primary', 'submit_edit_entry'); ?>
-                </form>
-            </div>
-            <?php
-        }
-    } else {
-        $lotto_list_table = new Lotto_Entries_List_Table();
-        $lotto_list_table->prepare_items();
-
-        // Get default filter values for display
-        $timezone = new DateTimeZone('Asia/Yangon');
-        $current_time = new DateTime('now', $timezone);
-        $default_date = $current_time->format('Y-m-d');
-
-        $time_1201 = new DateTime($current_time->format('Y-m-d') . ' 12:01:00', $timezone);
-        $time_1630 = new DateTime($current_time->format('Y-m-d') . ' 16:30:00', $timezone);
-        $default_session = '12:01 PM';
-        if ($current_time > $time_1201 && $current_time <= $time_1630) {
-            $default_session = '4:30 PM';
-        }
-
-        $selected_date = isset($_GET['filter_date']) && !empty($_GET['filter_date']) ? sanitize_text_field($_GET['filter_date']) : $default_date;
-        $selected_session = isset($_GET['filter_session']) ? sanitize_text_field($_GET['filter_session']) : $default_session;
-        ?>
-        <div class="wrap">
-            <h1 class="wp-heading-inline"><?php echo esc_html__('All Lottery Entries', 'custom-lottery'); ?></h1>
-            <button type="button" id="add-new-entry-popup" class="page-title-action"><?php echo esc_html__('Add New Entry', 'custom-lottery'); ?></button>
-
-            <form method="get" style="margin-bottom: 15px;">
-                <input type="hidden" name="page" value="<?php echo esc_attr($_REQUEST['page']); ?>">
-
-                <label for="filter-date"><?php echo esc_html__('Date:', 'custom-lottery'); ?></label>
-                <input type="date" id="filter-date" name="filter_date" value="<?php echo esc_attr($selected_date); ?>">
-
-                <label for="filter-session"><?php echo esc_html__('Session:', 'custom-lottery'); ?></label>
-                <select name="filter_session">
-                    <option value="all" <?php selected($selected_session, 'all'); ?>><?php _e('All Sessions', 'custom-lottery'); ?></option>
-                    <option value="12:01 PM" <?php selected($selected_session, '12:01 PM'); ?>>12:01 PM</option>
-                    <option value="4:30 PM" <?php selected($selected_session, '4:30 PM'); ?>>4:30 PM</option>
-                </select>
-
-                <input type="submit" class="button" value="<?php _e('Filter', 'custom-lottery'); ?>">
-            </form>
-
-            <form method="post">
-                <?php $lotto_list_table->display(); ?>
-            </form>
-
-            <div id="lottery-entry-popup" title="<?php esc_attr_e('Add New Lottery Entry', 'custom-lottery'); ?>" style="display:none;">
-                <?php custom_lottery_render_entry_form(); ?>
-            </div>
-        </div>
-        <?php
-    }
-}
-
-/**
- * Renders the reusable lottery entry form.
- */
-function custom_lottery_render_entry_form() {
-    $timezone = new DateTimeZone('Asia/Yangon');
-    $current_time = new DateTime('now', $timezone);
-    $time_1201 = new DateTime($current_time->format('Y-m-d') . ' 12:01:00', $timezone);
-    $time_1630 = new DateTime($current_time->format('Y-m-d') . ' 16:30:00', $timezone);
-
-    $default_session = '12:01 PM';
-    if ($current_time > $time_1201 && $current_time <= $time_1630) {
-        $default_session = '4:30 PM';
-    }
-    ?>
-    <form id="lottery-entry-form" method="post">
-        <?php wp_nonce_field( 'lottery_entry_action', 'lottery_entry_nonce' ); ?>
-        <table class="form-table">
-            <tbody>
-                <tr>
-                    <th scope="row"><label for="customer-name"><?php echo esc_html__( 'Customer Name', 'custom-lottery' ); ?></label></th>
-                    <td><input type="text" id="customer-name" name="customer_name" class="regular-text" required></td>
-                </tr>
-                <tr>
-                    <th scope="row"><label for="phone"><?php echo esc_html__( 'Phone', 'custom-lottery' ); ?></label></th>
-                    <td><input type="text" id="phone" name="phone" class="regular-text" required></td>
-                </tr>
-                <tr>
-                    <th scope="row"><label for="draw-session"><?php echo esc_html__( 'Draw Session', 'custom-lottery' ); ?></label></th>
-                    <td>
-                        <select id="draw-session" name="draw_session">
-                            <option value="12:01 PM" <?php selected( $default_session, '12:01 PM' ); ?>>12:01 PM</option>
-                            <option value="4:30 PM" <?php selected( $default_session, '4:30 PM' ); ?>>4:30 PM</option>
-                        </select>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
-
-        <hr>
-        <h2><?php echo esc_html__( 'Entries', 'custom-lottery' ); ?></h2>
-        <div id="entry-rows-wrapper">
-            <div class="entry-row">
-                <input type="text" name="lottery_number[]" placeholder="Number (e.g., 45)" maxlength="2" pattern="\d{2}" class="small-text" required>
-                <input type="number" name="amount[]" placeholder="Amount" class="small-text" step="100" min="0" required>
-                <label style="margin-left: 5px; margin-right: 10px;">
-                    <input type="checkbox" name="reverse_entry[]" value="1"> <?php echo esc_html__( 'Reverse ("R")', 'custom-lottery' ); ?>
-                </label>
-                <span class="remove-entry-row" style="display:none;">&times;</span>
-            </div>
-        </div>
-        <button type="button" id="add-entry-row" class="button" style="margin-top: 10px;"><?php echo esc_html__( 'Add More', 'custom-lottery' ); ?></button>
-
-        <p class="submit">
-            <button type="submit" class="button button-primary"><?php echo esc_html__( 'Submit All Entries', 'custom-lottery' ); ?></button>
-        </p>
-    </form>
-    <div id="form-response"></div>
-    <button id="print-receipt-button" class="button" style="display: none; margin-top: 10px;"><?php echo esc_html__( 'Print Receipt', 'custom-lottery' ); ?></button>
-    <?php
-}
-
-/**
- * Callback function for the Lottery Entry page.
- */
-function custom_lottery_entry_page_callback() {
-    ?>
-    <style>
-        .entry-row { display: flex; align-items: center; margin-bottom: 10px; }
-        .entry-row input { margin-right: 10px; }
-        .entry-row .remove-entry-row { cursor: pointer; color: red; }
-    </style>
-    <div class="wrap">
-        <h1><?php echo esc_html__( 'Lottery Entry', 'custom-lottery' ); ?></h1>
-        <?php custom_lottery_render_entry_form(); ?>
     </div>
     <?php
 }

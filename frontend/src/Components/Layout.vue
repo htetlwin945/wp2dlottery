@@ -6,7 +6,8 @@
           <h1 class="text-3xl font-bold text-gray-900">Lottery SPA</h1>
           <nav class="space-x-4">
             <Link href="/wp-admin/admin.php?page=custom-lottery-spa" :class="{ 'font-bold': $page.component === 'Dashboard' }">Dashboard</Link>
-            <Link href="/wp-admin/admin.php?page=custom-lottery-customers" :class="{ 'font-bold': $page.component === 'Customers/Index' }">Customers</Link>
+            <Link href="/wp-admin/admin.php?page=custom-lottery-spa-customers" :class="{ 'font-bold': $page.component.startsWith('Customers') }">Customers</Link>
+            <Link href="/wp-admin/admin.php?page=custom-lottery-spa-entry" :class="{ 'font-bold': $page.component.startsWith('LotteryEntry') }">Lottery Entry</Link>
             <!-- Add other links here as features are built -->
           </nav>
         </div>
