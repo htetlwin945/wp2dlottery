@@ -27,6 +27,7 @@ function activate_custom_lottery_plugin() {
         timestamp datetime DEFAULT '0000-00-00 00:00:00' NOT NULL,
         is_winner tinyint(1) DEFAULT 0 NOT NULL,
         paid_status tinyint(1) DEFAULT 0 NOT NULL,
+        agent_id bigint(20) DEFAULT NULL,
         PRIMARY KEY  (id)
     ) $charset_collate;";
     dbDelta( $sql_entries );
@@ -63,6 +64,7 @@ function activate_custom_lottery_plugin() {
         customer_name varchar(255) NOT NULL,
         phone varchar(20) NOT NULL,
         last_seen datetime NOT NULL,
+        agent_id bigint(20) DEFAULT NULL,
         PRIMARY KEY  (id),
         UNIQUE KEY phone (phone)
     ) $charset_collate;";
@@ -79,4 +81,36 @@ function activate_custom_lottery_plugin() {
         UNIQUE KEY `date_session` (`draw_date`, `draw_session`)
     ) $charset_collate;";
     dbDelta( $sql_winning_numbers );
+
+    // Table for agents
+    $table_name_agents = $wpdb->prefix . 'lotto_agents';
+    $sql_agents = "CREATE TABLE $table_name_agents (
+        id bigint(20) NOT NULL AUTO_INCREMENT,
+        user_id bigint(20) UNSIGNED NOT NULL,
+        agent_type varchar(20) NOT NULL, -- 'commission', 'cover'
+        commission_rate decimal(5, 2) DEFAULT 0.00,
+        parent_agent_id bigint(20) DEFAULT NULL,
+        status varchar(20) DEFAULT 'active' NOT NULL,
+        created_at datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        PRIMARY KEY  (id),
+        UNIQUE KEY user_id (user_id)
+    ) $charset_collate;";
+    dbDelta( $sql_agents );
+
+    // Table for cover requests
+    $table_name_cover_requests = $wpdb->prefix . 'lotto_cover_requests';
+    $sql_cover_requests = "CREATE TABLE $table_name_cover_requests (
+        id bigint(20) NOT NULL AUTO_INCREMENT,
+        from_agent_id bigint(20) NOT NULL,
+        to_agent_id bigint(20) NOT NULL,
+        lottery_number varchar(2) NOT NULL,
+        amount decimal(10, 2) NOT NULL,
+        draw_date date NOT NULL,
+        draw_session varchar(10) NOT NULL,
+        status varchar(20) DEFAULT 'pending' NOT NULL, -- 'pending', 'accepted', 'rejected'
+        requested_at datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        responded_at datetime DEFAULT NULL,
+        PRIMARY KEY  (id)
+    ) $charset_collate;";
+    dbDelta( $sql_cover_requests );
 }

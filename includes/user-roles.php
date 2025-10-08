@@ -33,6 +33,26 @@ function custom_lottery_add_roles() {
         ]
     );
 
+    // Add Commission Agent role
+    add_role(
+        'commission_agent',
+        __('Commission Agent', 'custom-lottery'),
+        [
+            'read' => true,
+            $capability => true,
+        ]
+    );
+
+    // Add Cover Agent role
+    add_role(
+        'cover_agent',
+        __('Cover Agent', 'custom-lottery'),
+        [
+            'read' => true,
+            $capability => true,
+        ]
+    );
+
     // Add the custom capability to the Administrator role as well
     $admin_role = get_role('administrator');
     if ($admin_role) {
@@ -53,4 +73,6 @@ function custom_lottery_remove_roles() {
     // Remove the custom roles
     remove_role('lottery_manager');
     remove_role('data_entry_clerk');
+    remove_role('commission_agent');
+    remove_role('cover_agent');
 }
