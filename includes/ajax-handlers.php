@@ -178,7 +178,7 @@ function custom_lottery_submit_entries_callback() {
             $entry_data['agent_id'] = $agent_id;
         }
         $wpdb->insert($table_entries, $entry_data);
-        check_and_auto_block_number($lottery_number, $draw_session, $current_date, $agent_id);
+        check_and_auto_block_number($lottery_number, $draw_session, $current_date, $agent_id, $amount);
         $success_count++;
         $total_amount += $amount;
         $processed_entries_for_receipt[] = ['lottery_number' => $lottery_number, 'amount' => $amount, 'is_reverse' => false];
@@ -204,7 +204,7 @@ function custom_lottery_submit_entries_callback() {
                     $rev_entry_data['agent_id'] = $agent_id;
                 }
                 $wpdb->insert($table_entries, $rev_entry_data);
-                check_and_auto_block_number($reversed_number, $draw_session, $current_date, $agent_id);
+                check_and_auto_block_number($reversed_number, $draw_session, $current_date, $agent_id, $amount);
                 $success_count++;
                 $total_amount += $amount;
                 $processed_entries_for_receipt[] = ['lottery_number' => $reversed_number, 'amount' => $amount, 'is_reverse' => true];

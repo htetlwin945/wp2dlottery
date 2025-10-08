@@ -54,7 +54,7 @@ function custom_lottery_update_or_create_customer($name, $phone, $agent_id = nul
 /**
  * Checks if a number's total purchased amount exceeds the custom limit and blocks it or creates a cover request.
  */
-function check_and_auto_block_number($number, $session, $date, $agent_id = null) {
+function check_and_auto_block_number($number, $session, $date, $agent_id = null, $amount = 0) {
     global $wpdb;
     $table_entries = $wpdb->prefix . 'lotto_entries';
     $table_limits = $wpdb->prefix . 'lotto_limits';
@@ -94,14 +94,12 @@ function check_and_auto_block_number($number, $session, $date, $agent_id = null)
             $number, $session, $date . ' 00:00:00', $date . ' 23:59:59'
         ));
 
-        if ($total_sales >= $global_limit) {
+        if ($total_sales > $global_limit) {
             if ($cover_system_enabled) {
-                $cover_amount = $total_sales - $global_limit;
-                $existing_request_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_cover_requests WHERE lottery_number = %s AND draw_date = %s AND draw_session = %s AND status = 'pending'", $number, $date, $session));
+                $sales_before_this_entry = $total_sales - $amount;
+                $cover_amount = $total_sales - max($global_limit, $sales_before_this_entry);
 
-                if ($existing_request_id) {
-                    $wpdb->update($table_cover_requests, ['amount' => $cover_amount], ['id' => $existing_request_id]);
-                } else {
+                if ($cover_amount > 0) {
                     $wpdb->insert($table_cover_requests, [
                         'lottery_number' => $number,
                         'draw_date'      => $date,
@@ -109,8 +107,8 @@ function check_and_auto_block_number($number, $session, $date, $agent_id = null)
                         'amount'         => $cover_amount,
                         'status'         => 'pending',
                         'timestamp'      => current_time('mysql'),
-                        'commission_agent_id' => 0,
-                        'cover_agent_id' => 0,
+                        'commission_agent_id' => null,
+                        'cover_agent_id' => null,
                     ]);
                 }
             } elseif ($autoblock_enabled) {
