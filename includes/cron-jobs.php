@@ -6,36 +6,45 @@ if ( ! defined( 'WPINC' ) ) {
 }
 
 /**
- * Fetches winning numbers from the API and stores them in the database.
+ * Fetches winning numbers from the historical API for the current date and stores them.
+ * This is more reliable than the live endpoint, avoiding race conditions.
  * It also identifies the winning entries for the fetched session.
  */
 function custom_lottery_fetch_winning_numbers() {
     global $wpdb;
     $table_winning_numbers = $wpdb->prefix . 'lotto_winning_numbers';
-    $api_url = get_option('custom_lottery_api_url_live', 'https://api.thaistock2d.com/live');
+
+    // Use the historical API endpoint for greater reliability
+    $api_url_base = get_option('custom_lottery_api_url_historical', 'https://api.thaistock2d.com/2d-history');
+    $timezone = new DateTimeZone('Asia/Yangon');
+    $current_date = new DateTime('now', $timezone);
+    $current_date_str = $current_date->format('Y-m-d');
+    $api_url = add_query_arg(['date' => $current_date_str], $api_url_base);
 
     // Fetch data from the API
     $response = wp_remote_get($api_url, ['timeout' => 15]);
 
     // Handle API errors
     if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
-        error_log('Lottery Plugin API Error: ' . (is_wp_error($response) ? $response->get_error_message() : 'Invalid response code.'));
+        error_log('Lottery Plugin Historical API Error: ' . (is_wp_error($response) ? $response->get_error_message() : 'Invalid response code from ' . $api_url));
         return;
     }
 
     $body = wp_remote_retrieve_body($response);
     $data = json_decode($body, true);
 
-    // Handle invalid data format
-    if (empty($data['result']) || !is_array($data['result'])) {
-        error_log('Lottery Plugin API Error: Invalid data format received.');
+    // The historical endpoint returns a simple array, not nested under 'result'
+    if (empty($data) || !is_array($data)) {
+        error_log('Lottery Plugin Historical API Error: Invalid or empty data format received from ' . $api_url);
         return;
     }
 
-    $timezone = new DateTimeZone('Asia/Yangon');
-    $current_date_str = (new DateTime('now', $timezone))->format('Y-m-d');
+    foreach ($data as $result) {
+        // Ensure the required keys exist
+        if (!isset($result['open_time']) || !isset($result['twod'])) {
+            continue;
+        }
 
-    foreach ($data['result'] as $result) {
         $session_time = $result['open_time'];
         $session_map = [
             '12:01:00' => '12:01 PM',
@@ -46,6 +55,11 @@ function custom_lottery_fetch_winning_numbers() {
         if (isset($session_map[$session_time])) {
             $session_label = $session_map[$session_time];
             $winning_number = sanitize_text_field($result['twod']);
+
+            // Skip if the winning number is invalid (e.g., empty or placeholder)
+            if (empty($winning_number) || !preg_match('/^\d{2}$/', $winning_number)) {
+                continue;
+            }
 
             // Attempt to insert the new winning number.
             // The unique key on (draw_date, draw_session) will prevent duplicates.
@@ -59,7 +73,7 @@ function custom_lottery_fetch_winning_numbers() {
                 ['%s', '%s', '%s']
             );
 
-            // If the insert was successful (a new row was added), find the winners.
+            // If the insert was successful (a new row was added), find and flag the winners.
             if ($inserted) {
                 custom_lottery_identify_winners($session_label, $winning_number, $current_date_str);
             }
