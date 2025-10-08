@@ -4,7 +4,7 @@ Donate link: https://example.com/
 Tags: lottery, 2-digit
 Requires at least: 5.0
 Tested up to: 6.0
-Stable tag: 1.3.0
+Stable tag: 1.3.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -33,6 +33,9 @@ Once activated, you can access all features through the "Lottery" menu in the Wo
 3. The settings page.
 
 == Changelog ==
+
+= 1.3.1 =
+* Fix: Ensured that winning entries are correctly flagged in the database before being displayed on the Payouts page. This resolves an issue where the "Mark as Paid" button would not work correctly.
 
 = 1.3.0 =
 * Feature: Added a new "Settings" page under the "Lottery" menu.
