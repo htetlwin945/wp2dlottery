@@ -6,49 +6,63 @@ if ( ! defined( 'WPINC' ) ) {
 }
 
 /**
- * Fetches the winning numbers from the API.
+ * Fetches winning numbers from the API and stores them in the database.
+ * It also identifies the winning entries for the fetched session.
  */
 function custom_lottery_fetch_winning_numbers() {
+    global $wpdb;
+    $table_winning_numbers = $wpdb->prefix . 'lotto_winning_numbers';
     $api_url = 'https://api.thaistock2d.com/live';
+
+    // Fetch data from the API
     $response = wp_remote_get($api_url, ['timeout' => 15]);
 
+    // Handle API errors
     if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
-        // Log the error for debugging, but don't expose details to users.
-        error_log('Lottery Plugin API Error: ' . $response->get_error_message());
+        error_log('Lottery Plugin API Error: ' . (is_wp_error($response) ? $response->get_error_message() : 'Invalid response code.'));
         return;
     }
 
     $body = wp_remote_retrieve_body($response);
     $data = json_decode($body, true);
 
+    // Handle invalid data format
     if (empty($data['result']) || !is_array($data['result'])) {
         error_log('Lottery Plugin API Error: Invalid data format received.');
         return;
     }
 
     $timezone = new DateTimeZone('Asia/Yangon');
-    $current_date = new DateTime('now', $timezone);
-    $option_date_key = 'custom_lottery_last_fetch_date';
-    $last_fetch_date = get_option($option_date_key, '');
-
-    if ($last_fetch_date !== $current_date->format('Y-m-d')) {
-        update_option('custom_lottery_fetched_1201', 0);
-        update_option('custom_lottery_fetched_1630', 0);
-        update_option($option_date_key, $current_date->format('Y-m-d'));
-    }
+    $current_date_str = (new DateTime('now', $timezone))->format('Y-m-d');
 
     foreach ($data['result'] as $result) {
-        if ($result['open_time'] === '12:01:00' && !get_option('custom_lottery_fetched_1201')) {
+        $session_time = $result['open_time'];
+        $session_map = [
+            '12:01:00' => '12:01 PM',
+            '16:30:00' => '4:30 PM',
+        ];
+
+        // Check if the result is for a session we care about
+        if (isset($session_map[$session_time])) {
+            $session_label = $session_map[$session_time];
             $winning_number = sanitize_text_field($result['twod']);
-            update_option('custom_lottery_winning_number_1201', $winning_number);
-            update_option('custom_lottery_fetched_1201', 1);
-            custom_lottery_identify_winners('12:01 PM', $winning_number, $current_date->format('Y-m-d'));
-        }
-        if ($result['open_time'] === '16:30:00' && !get_option('custom_lottery_fetched_1630')) {
-            $winning_number = sanitize_text_field($result['twod']);
-            update_option('custom_lottery_winning_number_1630', $winning_number);
-            update_option('custom_lottery_fetched_1630', 1);
-            custom_lottery_identify_winners('4:30 PM', $winning_number, $current_date->format('Y-m-d'));
+
+            // Attempt to insert the new winning number.
+            // The unique key on (draw_date, draw_session) will prevent duplicates.
+            $inserted = $wpdb->insert(
+                $table_winning_numbers,
+                [
+                    'winning_number' => $winning_number,
+                    'draw_date'      => $current_date_str,
+                    'draw_session'   => $session_label,
+                ],
+                ['%s', '%s', '%s']
+            );
+
+            // If the insert was successful (a new row was added), find the winners.
+            if ($inserted) {
+                custom_lottery_identify_winners($session_label, $winning_number, $current_date_str);
+            }
         }
     }
 }
