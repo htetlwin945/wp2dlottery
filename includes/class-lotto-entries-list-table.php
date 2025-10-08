@@ -74,29 +74,47 @@ class Lotto_Entries_List_Table extends WP_List_Table {
         $output .= sprintf('<ul id="%s" class="entries-details-list" style="margin: 0; padding-left: 1.5em; display: none;">', esc_attr($details_id));
 
         foreach ($item['entries'] as $entry) {
-            $delete_nonce = wp_create_nonce('cl_delete_entry_' . $entry['id']);
+            $actions = [];
+            if (current_user_can('manage_options')) {
+                // Admin actions
+                $delete_nonce = wp_create_nonce('cl_delete_entry_' . $entry['id']);
+                $url_params = ['page' => $_REQUEST['page']];
+                if (isset($_GET['filter_date'])) $url_params['filter_date'] = $_GET['filter_date'];
+                if (isset($_GET['filter_session'])) $url_params['filter_session'] = $_GET['filter_session'];
+                if (isset($_GET['filter_agent_id'])) $url_params['filter_agent_id'] = $_GET['filter_agent_id'];
 
-            $url_params = ['page' => $_REQUEST['page']];
-            if (isset($_GET['filter_date'])) $url_params['filter_date'] = $_GET['filter_date'];
-            if (isset($_GET['filter_session'])) $url_params['filter_session'] = $_GET['filter_session'];
-            if (isset($_GET['filter_agent_id'])) $url_params['filter_agent_id'] = $_GET['filter_agent_id'];
+                $edit_url = add_query_arg(array_merge($url_params, ['action' => 'edit', 'entry_id' => $entry['id']]), admin_url('admin.php'));
+                $delete_url = add_query_arg(array_merge($url_params, ['action' => 'delete', 'entry_id' => $entry['id'], '_wpnonce' => $delete_nonce]), admin_url('admin.php'));
 
-            $edit_url = add_query_arg(array_merge($url_params, ['action' => 'edit', 'entry_id' => $entry['id']]), admin_url('admin.php'));
-            $delete_url = add_query_arg(array_merge($url_params, ['action' => 'delete', 'entry_id' => $entry['id'], '_wpnonce' => $delete_nonce]), admin_url('admin.php'));
-
-            $actions = [
-                'edit' => sprintf('<a href="%s">Edit</a>', esc_url($edit_url)),
-                'delete' => sprintf(
-                    '<a href="%s" onclick="return confirm(\'Are you sure you want to delete this entry?\')">Delete</a>',
-                    esc_url($delete_url)
-                ),
-            ];
+                $actions = [
+                    'edit' => sprintf('<a href="%s">Edit</a>', esc_url($edit_url)),
+                    'delete' => sprintf(
+                        '<a href="%s" onclick="return confirm(\'Are you sure you want to delete this entry?\')">Delete</a>',
+                        esc_url($delete_url)
+                    ),
+                ];
+            } else {
+                // Agent actions
+                if (empty($entry['has_mod_request'])) {
+                     $actions = [
+                        'request_mod' => sprintf(
+                            '<a href="#" class="request-modification-link" data-entry-id="%d">%s</a>',
+                            $entry['id'],
+                            __('Request Modification', 'custom-lottery')
+                        ),
+                    ];
+                }
+            }
 
             $entry_display = sprintf(
                 '%s - %s',
                 esc_html($entry['lottery_number']),
                 number_format($entry['amount'], 2)
             );
+
+            if (!empty($entry['has_mod_request'])) {
+                 $entry_display .= ' <span style="color: orange; font-weight: bold;">(' . __('Mod. Requested', 'custom-lottery') . ')</span>';
+            }
 
             if ($entry['is_winner']) {
                 $entry_display .= ' <span style="color: green; font-weight: bold;"> (Winner)</span>';
