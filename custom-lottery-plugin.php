@@ -33,6 +33,7 @@ require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/utils.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/user-roles.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/shortcodes.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/dashboard-widgets.php' );
+require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/class-lotto-winning-numbers-widget.php' );
 
 /**
  * Register activation and deactivation hooks.
@@ -87,6 +88,17 @@ function custom_lottery_enqueue_scripts($hook) {
         wp_enqueue_script(
             'custom-lottery-dashboard-widgets',
             CUSTOM_LOTTERY_PLUGIN_URL . 'js/dashboard-widgets.js',
+            ['jquery'],
+            CUSTOM_LOTTERY_VERSION,
+            true
+        );
+    }
+
+    // For the Tools page, which includes the manual import button
+    if ($hook === 'lottery_page_custom-lottery-tools') {
+        wp_enqueue_script(
+            'custom-lottery-admin-scripts',
+            CUSTOM_LOTTERY_PLUGIN_URL . 'js/admin-scripts.js',
             ['jquery'],
             CUSTOM_LOTTERY_VERSION,
             true

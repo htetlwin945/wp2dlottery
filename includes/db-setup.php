@@ -67,4 +67,16 @@ function activate_custom_lottery_plugin() {
         UNIQUE KEY phone (phone)
     ) $charset_collate;";
     dbDelta( $sql_customers );
+
+    // Table for winning numbers
+    $table_name_winning_numbers = $wpdb->prefix . 'lotto_winning_numbers';
+    $sql_winning_numbers = "CREATE TABLE $table_name_winning_numbers (
+        id bigint(20) NOT NULL AUTO_INCREMENT,
+        winning_number varchar(2) NOT NULL,
+        draw_date date NOT NULL,
+        draw_session varchar(10) NOT NULL,
+        PRIMARY KEY  (id),
+        UNIQUE KEY `date_session` (`draw_date`, `draw_session`)
+    ) $charset_collate;";
+    dbDelta( $sql_winning_numbers );
 }

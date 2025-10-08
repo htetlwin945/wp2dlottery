@@ -239,6 +239,19 @@ function custom_lottery_tools_page_callback() {
                 </button>
             </form>
         </div>
+
+        <div class="card" style="margin-top: 20px;">
+            <h2><?php echo esc_html__('Manual Winning Number Import', 'custom-lottery'); ?></h2>
+            <p><?php echo esc_html__('Click the button below to import the winning numbers for the last 10 days from the API. This will not overwrite existing entries.', 'custom-lottery'); ?></p>
+            <form id="manual-import-form">
+                <?php wp_nonce_field('manual_import_nonce', 'manual_import_nonce'); ?>
+                <button type="button" id="manual-import-button" class="button button-secondary">
+                    <?php echo esc_html__('Import Last 10 Days', 'custom-lottery'); ?>
+                </button>
+                <span id="manual-import-spinner" class="spinner" style="float: none; visibility: hidden;"></span>
+            </form>
+            <p id="manual-import-status" style="margin-top: 10px;"></p>
+        </div>
     </div>
     <?php
 }
@@ -292,6 +305,13 @@ function custom_lottery_dashboard_page_callback() {
                 </div>
             </div>
 
+        </div>
+
+        <div class="postbox">
+            <h2 class="hndle"><span><?php echo esc_html__( 'Winning Numbers History', 'custom-lottery' ); ?></span></h2>
+            <div class="inside">
+                <?php custom_lottery_render_winning_numbers_history_widget(); ?>
+            </div>
         </div>
 
         <div class="dashboard-controls">

@@ -256,3 +256,69 @@ function custom_lottery_get_dashboard_widgets_data_callback() {
     wp_send_json_success($response_data);
 }
 add_action('wp_ajax_get_dashboard_widgets_data', 'custom_lottery_get_dashboard_widgets_data_callback');
+
+
+/**
+ * AJAX handler for manually importing winning numbers from the last 10 days.
+ */
+function custom_lottery_manual_import_winning_numbers_handler() {
+    // Check for nonce for security
+    check_ajax_referer('manual_import_nonce', 'nonce');
+
+    global $wpdb;
+    $table_winning_numbers = $wpdb->prefix . 'lotto_winning_numbers';
+    $api_url = 'https://api.thaistock2d.com/2d_result';
+
+    // Fetch data from the API
+    $response = wp_remote_get($api_url, ['timeout' => 15]);
+
+    // Handle API errors
+    if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
+        wp_send_json_error(['message' => 'Failed to fetch data from the API.']);
+        return;
+    }
+
+    $body = wp_remote_retrieve_body($response);
+    $data = json_decode($body, true);
+
+    // Handle invalid data format
+    if (empty($data) || !is_array($data)) {
+        wp_send_json_error(['message' => 'Invalid data format received from the API.']);
+        return;
+    }
+
+    $imported_count = 0;
+    $session_map = [
+        '12:01:00' => '12:01 PM',
+        '16:30:00' => '4:30 PM',
+    ];
+
+    // The API returns results for more than 10 days, so we limit it here.
+    $days_to_import = array_slice($data, 0, 10);
+
+    foreach ($days_to_import as $day_result) {
+        $draw_date = $day_result['date'];
+        foreach ($day_result['child'] as $result) {
+            $session_time = $result['time'];
+            if (isset($session_map[$session_time])) {
+                $session_label = $session_map[$session_time];
+                $winning_number = sanitize_text_field($result['twod']);
+
+                // Use insert ignore to avoid errors on duplicate entries
+                $inserted = $wpdb->query($wpdb->prepare(
+                    "INSERT IGNORE INTO {$table_winning_numbers} (winning_number, draw_date, draw_session) VALUES (%s, %s, %s)",
+                    $winning_number,
+                    $draw_date,
+                    $session_label
+                ));
+
+                if ($inserted) {
+                    $imported_count++;
+                }
+            }
+        }
+    }
+
+    wp_send_json_success(['message' => "Manual import complete. {$imported_count} new winning numbers were added."]);
+}
+add_action('wp_ajax_manual_import_winning_numbers', 'custom_lottery_manual_import_winning_numbers_handler');
