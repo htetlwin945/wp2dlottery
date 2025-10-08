@@ -71,17 +71,26 @@ function custom_lottery_get_top_hot_numbers() {
  * Add all dashboard widgets.
  */
 function custom_lottery_add_dashboard_widgets() {
+    // Add screen option for layout columns
+    add_screen_option(
+        'layout_columns',
+        array(
+            'max'     => 4,
+            'default' => 2,
+        )
+    );
+
     $screen_id = get_current_screen()->id;
 
-    // Real-time API and Local Data Widgets
+    // Main (Normal) Column Widgets
+    add_meta_box('custom_lottery_charts_widget', __('Sales & Profit Charts', 'custom-lottery'), 'custom_lottery_render_charts_widget', $screen_id, 'normal', 'high');
+    add_meta_box('custom_lottery_winning_numbers_history_widget', __('Winning Numbers History', 'custom-lottery'), 'custom_lottery_render_winning_numbers_history_widget_callback', $screen_id, 'normal', 'default');
+
+    // Side Column Widgets
     add_meta_box('custom_lottery_winning_numbers_widget', __('Today\'s Winning Numbers (API)', 'custom-lottery'), 'custom_lottery_render_winning_numbers_widget', $screen_id, 'side', 'high');
     add_meta_box('custom_lottery_live_market_data_widget', __('Live Market Data (API)', 'custom-lottery'), 'custom_lottery_render_live_market_data_widget', $screen_id, 'side', 'high');
     add_meta_box('custom_lottery_live_sales_widget', __('Live Sales Ticker (Local)', 'custom-lottery'), 'custom_lottery_render_live_sales_widget', $screen_id, 'side', 'default');
     add_meta_box('custom_lottery_hot_numbers_widget', __('Today\'s Top 5 Hot Numbers (Local)', 'custom-lottery'), 'custom_lottery_render_hot_numbers_widget', $screen_id, 'side', 'default');
-
-    // Main Column Widgets
-    add_meta_box('custom_lottery_winning_numbers_history_widget', __('Winning Numbers History', 'custom-lottery'), 'custom_lottery_render_winning_numbers_history_widget_callback', $screen_id, 'normal', 'high');
-    add_meta_box('custom_lottery_charts_widget', __('Sales & Profit Charts', 'custom-lottery'), 'custom_lottery_render_charts_widget', $screen_id, 'normal', 'default');
 }
 
 /**

@@ -262,7 +262,13 @@ function custom_lottery_tools_page_callback() {
  * Callback function for the Dashboard page.
  */
 function custom_lottery_dashboard_page_callback() {
-    $screen_id = get_current_screen()->id;
+    $screen = get_current_screen();
+    $columns = absint( get_user_option( 'screen_layout_' . $screen->id ) );
+    if ( $columns < 1 || $columns > 4 ) {
+        $columns = 2; // Default to 2 columns
+    }
+
+    $columns_css = 'columns-' . $columns;
     ?>
     <div class="wrap">
         <h1><?php echo esc_html__( 'Lottery Dashboard', 'custom-lottery' ); ?></h1>
@@ -271,13 +277,23 @@ function custom_lottery_dashboard_page_callback() {
         <?php wp_nonce_field( 'meta-box-order', 'meta-box-order-nonce', false ); ?>
 
         <div id="dashboard-widgets-wrap">
-            <div id="dashboard-widgets" class="metabox-holder">
+            <div id="dashboard-widgets" class="metabox-holder <?php echo esc_attr( $columns_css ); ?>">
                 <div id="postbox-container-1" class="postbox-container">
-                    <?php do_meta_boxes( $screen_id, 'side', null ); ?>
+                    <?php do_meta_boxes( $screen->id, 'normal', null ); ?>
                 </div>
                 <div id="postbox-container-2" class="postbox-container">
-                    <?php do_meta_boxes( $screen_id, 'normal', null ); ?>
+                    <?php do_meta_boxes( $screen->id, 'side', null ); ?>
                 </div>
+                <?php if ( $columns > 2 ) : ?>
+                <div id="postbox-container-3" class="postbox-container">
+                    <?php do_meta_boxes( $screen->id, 'column3', null ); ?>
+                </div>
+                <?php endif; ?>
+                <?php if ( $columns > 3 ) : ?>
+                <div id="postbox-container-4" class="postbox-container">
+                    <?php do_meta_boxes( $screen->id, 'column4', null ); ?>
+                </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>
