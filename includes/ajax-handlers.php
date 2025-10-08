@@ -353,3 +353,78 @@ function custom_lottery_manual_import_winning_numbers_handler() {
     wp_send_json_success(['message' => "Manual import complete. {$imported_count} new winning numbers were added."]);
 }
 add_action('wp_ajax_manual_import_winning_numbers', 'custom_lottery_manual_import_winning_numbers_handler');
+
+/**
+ * AJAX handler for assigning a cover agent to a request.
+ */
+function custom_lottery_assign_cover_agent_callback() {
+    check_ajax_referer('cover_requests_nonce', 'nonce');
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(['message' => 'Permission denied.']);
+        return;
+    }
+
+    global $wpdb;
+    $table_cover_requests = $wpdb->prefix . 'lotto_cover_requests';
+
+    $request_id = isset($_POST['request_id']) ? absint($_POST['request_id']) : 0;
+    $agent_id = isset($_POST['agent_id']) ? absint($_POST['agent_id']) : 0;
+
+    if (empty($request_id) || empty($agent_id)) {
+        wp_send_json_error(['message' => 'Invalid request or agent ID.']);
+        return;
+    }
+
+    $updated = $wpdb->update(
+        $table_cover_requests,
+        ['status' => 'assigned', 'cover_agent_id' => $agent_id],
+        ['id' => $request_id]
+    );
+
+    if ($updated) {
+        $table_agents = $wpdb->prefix . 'lotto_agents';
+        $agent_user_id = $wpdb->get_var($wpdb->prepare("SELECT user_id FROM $table_agents WHERE id = %d", $agent_id));
+        $user = get_userdata($agent_user_id);
+        $agent_name = $user ? $user->display_name : 'Unknown';
+        wp_send_json_success(['message' => 'Agent assigned successfully.', 'agent_name' => $agent_name]);
+    } else {
+        wp_send_json_error(['message' => 'Failed to assign agent.']);
+    }
+}
+add_action('wp_ajax_assign_cover_agent', 'custom_lottery_assign_cover_agent_callback');
+
+/**
+ * AJAX handler for confirming a cover request.
+ */
+function custom_lottery_confirm_cover_callback() {
+    check_ajax_referer('cover_requests_nonce', 'nonce');
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(['message' => 'Permission denied.']);
+        return;
+    }
+
+    global $wpdb;
+    $table_cover_requests = $wpdb->prefix . 'lotto_cover_requests';
+
+    $request_id = isset($_POST['request_id']) ? absint($_POST['request_id']) : 0;
+
+    if (empty($request_id)) {
+        wp_send_json_error(['message' => 'Invalid request ID.']);
+        return;
+    }
+
+    $updated = $wpdb->update(
+        $table_cover_requests,
+        ['status' => 'confirmed'],
+        ['id' => $request_id]
+    );
+
+    if ($updated) {
+        wp_send_json_success(['message' => 'Cover confirmed successfully.']);
+    } else {
+        wp_send_json_error(['message' => 'Failed to confirm cover.']);
+    }
+}
+add_action('wp_ajax_confirm_cover', 'custom_lottery_confirm_cover_callback');

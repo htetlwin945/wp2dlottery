@@ -105,6 +105,22 @@ function custom_lottery_enqueue_scripts($hook) {
             true
         );
     }
+
+    // For the Financial Report page (Cover Requests)
+    if ($hook === 'lottery_page_custom-lottery-reports') {
+        wp_enqueue_script(
+            'custom-lottery-cover-requests',
+            CUSTOM_LOTTERY_PLUGIN_URL . 'js/cover-requests.js',
+            ['jquery'],
+            CUSTOM_LOTTERY_VERSION,
+            true
+        );
+        wp_localize_script(
+            'custom-lottery-cover-requests',
+            'cover_requests_vars',
+            ['nonce' => wp_create_nonce('cover_requests_nonce')]
+        );
+    }
 }
 add_action('admin_enqueue_scripts', 'custom_lottery_enqueue_scripts');
 
