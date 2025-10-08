@@ -23,60 +23,107 @@ function custom_lottery_log_action($action, $details) {
 /**
  * Creates or updates a customer in the database based on the phone number.
  */
-function custom_lottery_update_or_create_customer($name, $phone) {
+function custom_lottery_update_or_create_customer($name, $phone, $agent_id = null) {
     global $wpdb;
     $table_customers = $wpdb->prefix . 'lotto_customers';
 
-    $wpdb->query($wpdb->prepare(
-        "INSERT INTO $table_customers (customer_name, phone, last_seen) VALUES (%s, %s, %s)
-         ON DUPLICATE KEY UPDATE customer_name = %s, last_seen = %s",
-        $name,
-        $phone,
-        current_time('mysql'),
-        $name,
-        current_time('mysql')
-    ));
-}
+    $existing_customer = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_customers WHERE phone = %s", $phone));
 
-/**
- * Checks if a number's total purchased amount exceeds the custom limit and blocks it if necessary.
- */
-function check_and_auto_block_number($number, $session, $date) {
-    global $wpdb;
-    $table_entries = $wpdb->prefix . 'lotto_entries';
-    $table_limits = $wpdb->prefix . 'lotto_limits';
-
-    $limit_amount = get_option('custom_lottery_number_limit', 5000);
-
-    $start_datetime = $date . ' 00:00:00';
-    $end_datetime = $date . ' 23:59:59';
-
-    $number_total_amount = $wpdb->get_var($wpdb->prepare(
-        "SELECT SUM(amount) FROM $table_entries WHERE lottery_number = %s AND draw_session = %s AND timestamp BETWEEN %s AND %s",
-        $number, $session, $start_datetime, $end_datetime
-    ));
-
-    if ($number_total_amount >= $limit_amount) {
-        $is_already_blocked = $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM $table_limits WHERE lottery_number = %s AND draw_date = %s AND draw_session = %s",
-            $number, $date, $session
-        ));
-
-        if (!$is_already_blocked) {
-            $wpdb->insert($table_limits, [
-                'lottery_number' => $number,
-                'draw_date'      => $date,
-                'draw_session'   => $session,
-                'limit_type'     => 'auto'
-            ]);
+    if ($existing_customer) {
+        $data_to_update = [
+            'customer_name' => $name,
+            'last_seen'     => current_time('mysql'),
+        ];
+        if ($agent_id) {
+            $data_to_update['agent_id'] = $agent_id;
         }
+        $wpdb->update($table_customers, $data_to_update, ['id' => $existing_customer->id]);
+    } else {
+        $data = [
+            'customer_name' => $name,
+            'phone'         => $phone,
+            'last_seen'     => current_time('mysql'),
+        ];
+        if ($agent_id) {
+            $data['agent_id'] = $agent_id;
+        }
+        $wpdb->insert($table_customers, $data);
     }
 }
 
 /**
+ * Checks if a number's total purchased amount exceeds the custom limit and blocks it or creates a cover request.
+ */
+function check_and_auto_block_number($number, $session, $date, $agent_id = null, $amount = 0) {
+    global $wpdb;
+    $table_entries = $wpdb->prefix . 'lotto_entries';
+    $table_limits = $wpdb->prefix . 'lotto_limits';
+    $table_agents = $wpdb->prefix . 'lotto_agents';
+    $table_cover_requests = $wpdb->prefix . 'lotto_cover_requests';
+
+    if ($agent_id) {
+        // --- Commission Agent Logic: Block if their personal limit is exceeded ---
+        if (!get_option('custom_lottery_enable_auto_blocking')) return;
+
+        $limit_amount = $wpdb->get_var($wpdb->prepare("SELECT per_number_limit FROM $table_agents WHERE id = %d", $agent_id));
+        if (empty($limit_amount) || $limit_amount <= 0) return;
+
+        $agent_sales = $wpdb->get_var($wpdb->prepare(
+            "SELECT SUM(amount) FROM $table_entries WHERE lottery_number = %s AND draw_session = %s AND agent_id = %d AND timestamp BETWEEN %s AND %s",
+            $number, $session, $agent_id, $date . ' 00:00:00', $date . ' 23:59:59'
+        ));
+
+        if ($agent_sales >= $limit_amount) {
+            $is_already_blocked = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_limits WHERE lottery_number = %s AND draw_date = %s AND draw_session = %s", $number, $date, $session));
+            if (!$is_already_blocked) {
+                $wpdb->insert($table_limits, ['lottery_number' => $number, 'draw_date' => $date, 'draw_session' => $session, 'limit_type' => 'auto']);
+            }
+        }
+    } else {
+        // --- Admin/Manager Logic: Create cover request or block based on settings ---
+        $cover_system_enabled = get_option('custom_lottery_enable_cover_agent_system');
+        $autoblock_enabled = get_option('custom_lottery_enable_auto_blocking');
+
+        if (!$cover_system_enabled && !$autoblock_enabled) return;
+
+        $global_limit = get_option('custom_lottery_number_limit', 5000);
+        if (empty($global_limit) || $global_limit <= 0) return;
+
+        $total_sales = $wpdb->get_var($wpdb->prepare(
+            "SELECT SUM(amount) FROM $table_entries WHERE lottery_number = %s AND draw_session = %s AND timestamp BETWEEN %s AND %s",
+            $number, $session, $date . ' 00:00:00', $date . ' 23:59:59'
+        ));
+
+        if ($total_sales > $global_limit) {
+            if ($cover_system_enabled) {
+                $sales_before_this_entry = $total_sales - $amount;
+                $cover_amount = $total_sales - max($global_limit, $sales_before_this_entry);
+
+                if ($cover_amount > 0) {
+                    $wpdb->insert($table_cover_requests, [
+                        'lottery_number' => $number,
+                        'draw_date'      => $date,
+                        'draw_session'   => $session,
+                        'amount'         => $cover_amount,
+                        'status'         => 'pending',
+                        'timestamp'      => current_time('mysql'),
+                        'commission_agent_id' => null,
+                        'cover_agent_id' => null,
+                    ]);
+                }
+            } elseif ($autoblock_enabled) {
+                $is_already_blocked = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_limits WHERE lottery_number = %s AND draw_date = %s AND draw_session = %s", $number, $date, $session));
+                if (!$is_already_blocked) {
+                    $wpdb->insert($table_limits, ['lottery_number' => $number, 'draw_date' => $date, 'draw_session' => $session, 'limit_type' => 'auto']);
+                }
+            }
+        }
+    }
+}
+
+
+/**
  * Retrieves the configured session times with defaults.
- *
- * @return array Associative array of session times.
  */
 function custom_lottery_get_session_times() {
     $defaults = [
@@ -91,8 +138,6 @@ function custom_lottery_get_session_times() {
 
 /**
  * Determines the current active lottery session based on the time.
- *
- * @return string|null The current session ('12:01 PM' or '4:30 PM') or null if no session is active.
  */
 function custom_lottery_get_current_session() {
     $session_times = custom_lottery_get_session_times();
@@ -113,8 +158,6 @@ function custom_lottery_get_current_session() {
 
 /**
  * Fetches data from the Thai Stock 2D API.
- *
- * @return array|WP_Error The decoded JSON data or a WP_Error on failure.
  */
 function custom_lottery_fetch_api_data() {
     $api_url = get_option('custom_lottery_api_url_live', 'https://api.thaistock2d.com/live');

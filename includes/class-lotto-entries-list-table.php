@@ -27,7 +27,6 @@ class Lotto_Entries_List_Table extends WP_List_Table {
     }
 
     public function column_cb($item) {
-        // The value of the checkbox will be the customer's phone number
         return sprintf('<input type="checkbox" name="customer_phone[]" value="%s" />', esc_attr($item['phone']));
     }
 
@@ -48,7 +47,7 @@ class Lotto_Entries_List_Table extends WP_List_Table {
             case 'customer_name':
                 return $item[$column_name];
             default:
-                return ''; // Should not happen
+                return '';
         }
     }
 
@@ -62,10 +61,8 @@ class Lotto_Entries_List_Table extends WP_List_Table {
         }
 
         $entry_count = count($item['entries']);
-        // Use phone number for a unique ID, sanitized for CSS selector.
         $details_id = 'entries-details-' . sanitize_html_class($item['phone']);
 
-        // Summary and toggle button
         $output = sprintf(
             '<p>%d %s &mdash; <a href="#" class="view-entries-details" data-target="#%s">%s</a></p>',
             $entry_count,
@@ -74,7 +71,6 @@ class Lotto_Entries_List_Table extends WP_List_Table {
             __('View Details', 'custom-lottery')
         );
 
-        // The collapsible list
         $output .= sprintf('<ul id="%s" class="entries-details-list" style="margin: 0; padding-left: 1.5em; display: none;">', esc_attr($details_id));
 
         foreach ($item['entries'] as $entry) {
@@ -83,6 +79,7 @@ class Lotto_Entries_List_Table extends WP_List_Table {
             $url_params = ['page' => $_REQUEST['page']];
             if (isset($_GET['filter_date'])) $url_params['filter_date'] = $_GET['filter_date'];
             if (isset($_GET['filter_session'])) $url_params['filter_session'] = $_GET['filter_session'];
+            if (isset($_GET['filter_agent_id'])) $url_params['filter_agent_id'] = $_GET['filter_agent_id'];
 
             $edit_url = add_query_arg(array_merge($url_params, ['action' => 'edit', 'entry_id' => $entry['id']]), admin_url('admin.php'));
             $delete_url = add_query_arg(array_merge($url_params, ['action' => 'delete', 'entry_id' => $entry['id'], '_wpnonce' => $delete_nonce]), admin_url('admin.php'));
@@ -117,9 +114,38 @@ class Lotto_Entries_List_Table extends WP_List_Table {
         return $output;
     }
 
+    protected function extra_tablenav($which) {
+        if ($which == 'top' && current_user_can('manage_options')) {
+            global $wpdb;
+            $table_agents = $wpdb->prefix . 'lotto_agents';
+            $agents = $wpdb->get_results($wpdb->prepare("SELECT id, user_id FROM $table_agents WHERE agent_type = %s", 'commission'));
+
+            if (!empty($agents)) {
+                $current_agent_filter = isset($_GET['filter_agent_id']) ? absint($_GET['filter_agent_id']) : 0;
+                echo '<div class="alignleft actions">';
+                echo '<select name="filter_agent_id">';
+                echo '<option value="">' . esc_html__('All Agents', 'custom-lottery') . '</option>';
+                foreach ($agents as $agent) {
+                    $user = get_userdata($agent->user_id);
+                    $display_name = $user ? $user->display_name : 'Unknown User';
+                    printf(
+                        '<option value="%s"%s>%s</option>',
+                        esc_attr($agent->id),
+                        selected($current_agent_filter, $agent->id, false),
+                        esc_html($display_name)
+                    );
+                }
+                echo '</select>';
+                submit_button(__('Filter'), 'secondary', 'filter_action', false);
+                echo '</div>';
+            }
+        }
+    }
+
     public function prepare_items() {
         global $wpdb;
         $table_name = $wpdb->prefix . 'lotto_entries';
+        $table_agents = $wpdb->prefix . 'lotto_agents';
         $per_page = 20;
 
         $columns = $this->get_columns();
@@ -130,39 +156,46 @@ class Lotto_Entries_List_Table extends WP_List_Table {
         $orderby = isset($_GET['orderby']) ? sanitize_key($_GET['orderby']) : 'customer_name';
         $order = isset($_GET['order']) ? sanitize_key($_GET['order']) : 'asc';
 
-        // Get filter values
         $timezone = new DateTimeZone('Asia/Yangon');
         $current_time = new DateTime('now', $timezone);
         $default_date = $current_time->format('Y-m-d');
-
         $default_session = custom_lottery_get_current_session() ?? '12:01 PM';
-
         $filter_date = isset($_GET['filter_date']) && !empty($_GET['filter_date']) ? sanitize_text_field($_GET['filter_date']) : $default_date;
         $filter_session = isset($_GET['filter_session']) ? sanitize_text_field($_GET['filter_session']) : $default_session;
+        $filter_agent_id = isset($_GET['filter_agent_id']) ? absint($_GET['filter_agent_id']) : 0;
 
         $where_clauses = [];
         $query_params = [];
 
-        // Date filter
+        $current_user = wp_get_current_user();
+        if (in_array('commission_agent', (array) $current_user->roles)) {
+            $agent_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_agents WHERE user_id = %d", $current_user->ID));
+            if ($agent_id) {
+                $where_clauses[] = "agent_id = %d";
+                $query_params[] = $agent_id;
+            } else {
+                $where_clauses[] = "1=0";
+            }
+        } elseif (current_user_can('manage_options') && $filter_agent_id > 0) {
+            $where_clauses[] = "agent_id = %d";
+            $query_params[] = $filter_agent_id;
+        }
+
         $start_datetime = $filter_date . ' 00:00:00';
         $end_datetime = $filter_date . ' 23:59:59';
         $where_clauses[] = "timestamp BETWEEN %s AND %s";
         $query_params[] = $start_datetime;
         $query_params[] = $end_datetime;
 
-        // Session filter
         if ($filter_session !== 'all') {
             $where_clauses[] = "draw_session = %s";
             $query_params[] = $filter_session;
         }
 
         $where_sql = 'WHERE ' . implode(' AND ', $where_clauses);
-
-        // Fetch all matching entries
         $all_items_query = "SELECT * FROM $table_name $where_sql ORDER BY customer_name, phone, timestamp ASC";
         $all_items = $wpdb->get_results($wpdb->prepare($all_items_query, $query_params), ARRAY_A);
 
-        // Group items by customer (using phone as a unique identifier)
         $grouped_items = [];
         foreach ($all_items as $item) {
             $key = $item['phone'];
@@ -180,29 +213,19 @@ class Lotto_Entries_List_Table extends WP_List_Table {
             $grouped_items[$key]['total_amount'] += $item['amount'];
         }
 
-        // Sort the grouped data
         usort($grouped_items, function ($a, $b) use ($orderby, $order) {
             $val_a = $a[$orderby];
             $val_b = $b[$orderby];
-
-            if ($orderby === 'total_amount') {
-                $result = $val_a <=> $val_b;
-            } else {
-                $result = strcasecmp($val_a, $val_b);
-            }
-
+            $result = ($orderby === 'total_amount') ? $val_a <=> $val_b : strcasecmp($val_a, $val_b);
             return ($order === 'asc') ? $result : -$result;
         });
 
         $current_page = $this->get_pagenum();
         $total_items = count($grouped_items);
-
         $this->set_pagination_args([
             'total_items' => $total_items,
             'per_page'    => $per_page
         ]);
-
-        // Slice the data for pagination
         $this->items = array_slice($grouped_items, (($current_page - 1) * $per_page), $per_page);
     }
 
