@@ -9,7 +9,7 @@ if ( ! defined( 'WPINC' ) ) {
  * Register the admin menu pages.
  */
 function custom_lottery_admin_menu() {
-    add_menu_page(
+    $dashboard_hook = add_menu_page(
         __( 'Lottery', 'custom-lottery' ),
         __( 'Lottery', 'custom-lottery' ),
         'manage_options',
@@ -99,6 +99,8 @@ function custom_lottery_admin_menu() {
         'custom-lottery-customers',
         'custom_lottery_customers_page_callback'
     );
+
+    add_action( "load-{$dashboard_hook}", 'custom_lottery_add_dashboard_widgets' );
 }
 add_action( 'admin_menu', 'custom_lottery_admin_menu' );
 
@@ -260,77 +262,22 @@ function custom_lottery_tools_page_callback() {
  * Callback function for the Dashboard page.
  */
 function custom_lottery_dashboard_page_callback() {
+    $screen_id = get_current_screen()->id;
     ?>
     <div class="wrap">
-        <h1><?php echo esc_html__('Lottery Dashboard', 'custom-lottery'); ?></h1>
+        <h1><?php echo esc_html__( 'Lottery Dashboard', 'custom-lottery' ); ?></h1>
 
-        <!-- Real-time Widgets -->
-        <div id="dashboard-widgets-wrapper" style="display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 20px;">
+        <?php wp_nonce_field( 'closedpostboxes', 'closedpostboxesnonce', false ); ?>
+        <?php wp_nonce_field( 'meta-box-order', 'meta-box-order-nonce', false ); ?>
 
-            <!-- Today's Winning Numbers (from API) -->
-            <div id="winning-numbers-widget" class="postbox" style="flex: 1 1 45%;">
-                <h2 class="hndle"><span><?php echo esc_html__("Today's Winning Numbers (API)", 'custom-lottery'); ?></span></h2>
-                <div class="inside">
-                    <p><strong><?php echo esc_html__('Morning (12:01 PM):', 'custom-lottery'); ?></strong> <span id="winning-number-morning">--</span></p>
-                    <p><strong><?php echo esc_html__('Evening (4:30 PM):', 'custom-lottery'); ?></strong> <span id="winning-number-evening">--</span></p>
+        <div id="dashboard-widgets-wrap">
+            <div id="dashboard-widgets" class="metabox-holder">
+                <div id="postbox-container-1" class="postbox-container">
+                    <?php do_meta_boxes( $screen_id, 'side', null ); ?>
                 </div>
-            </div>
-
-            <!-- Live Market Data (from API) -->
-            <div id="live-market-data-widget" class="postbox" style="flex: 1 1 45%;">
-                <h2 class="hndle"><span><?php echo esc_html__('Live Market Data (API)', 'custom-lottery'); ?></span></h2>
-                <div class="inside">
-                    <p><strong><?php echo esc_html__('SET Index:', 'custom-lottery'); ?></strong> <span id="live-set-index">--</span></p>
-                    <p><strong><?php echo esc_html__('Value:', 'custom-lottery'); ?></strong> <span id="live-value">--</span></p>
-                    <p><strong><?php echo esc_html__('2D:', 'custom-lottery'); ?></strong> <span id="live-twod">--</span></p>
+                <div id="postbox-container-2" class="postbox-container">
+                    <?php do_meta_boxes( $screen_id, 'normal', null ); ?>
                 </div>
-            </div>
-
-            <!-- Live Sales Ticker (from DB) -->
-            <div id="live-sales-widget" class="postbox" style="flex: 1 1 45%;">
-                <h2 class="hndle"><span><?php echo esc_html__('Live Sales Ticker (Local)', 'custom-lottery'); ?></span></h2>
-                <div class="inside">
-                    <p><strong><?php echo esc_html__('Current Session:', 'custom-lottery'); ?></strong> <span id="live-sales-session">--</span></p>
-                    <p><strong><?php echo esc_html__('Total Sales:', 'custom-lottery'); ?></strong> <span id="live-sales-total">0</span> Kyat</p>
-                </div>
-            </div>
-
-            <!-- Top 5 Hot Numbers (from DB) -->
-            <div id="hot-numbers-widget" class="postbox" style="flex: 1 1 45%;">
-                <h2 class="hndle"><span><?php echo esc_html__("Today's Top 5 Hot Numbers (Local)", 'custom-lottery'); ?></span></h2>
-                <div class="inside">
-                    <ul id="hot-numbers-list" style="margin-top: 0;">
-                        <li><?php echo esc_html__('Loading...', 'custom-lottery'); ?></li>
-                    </ul>
-                </div>
-            </div>
-
-        </div>
-
-        <div class="postbox">
-            <h2 class="hndle"><span><?php echo esc_html__( 'Winning Numbers History', 'custom-lottery' ); ?></span></h2>
-            <div class="inside">
-                <?php custom_lottery_render_winning_numbers_history_widget(); ?>
-            </div>
-        </div>
-
-        <div class="dashboard-controls">
-            <label for="dashboard-range-selector"><?php echo esc_html__('Select Date Range:', 'custom-lottery'); ?></label>
-            <select id="dashboard-range-selector">
-                <option value="last_7_days" selected><?php echo esc_html__('Last 7 Days', 'custom-lottery'); ?></option>
-                <option value="this_month"><?php echo esc_html__('This Month', 'custom-lottery'); ?></option>
-            </select>
-            <?php wp_nonce_field('dashboard_nonce', 'dashboard_nonce'); ?>
-        </div>
-
-        <div class="dashboard-charts" style="width: 80%; margin-top: 20px;">
-            <div class="chart-container" style="position: relative; height:40vh; width:80vw; margin-bottom: 40px;">
-                <h2><?php echo esc_html__('Sales vs. Payouts', 'custom-lottery'); ?></h2>
-                <canvas id="salesPayoutsChart"></canvas>
-            </div>
-            <div class="chart-container" style="position: relative; height:40vh; width:80vw;">
-                <h2><?php echo esc_html__('Net Profit Over Time', 'custom-lottery'); ?></h2>
-                <canvas id="netProfitChart"></canvas>
             </div>
         </div>
     </div>
