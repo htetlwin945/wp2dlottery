@@ -81,7 +81,7 @@ function custom_lottery_enqueue_scripts($hook) {
         wp_enqueue_script(
             'custom-lottery-dashboard',
             CUSTOM_LOTTERY_PLUGIN_URL . 'js/lottery-dashboard.js',
-            ['chart-js', 'jquery'],
+            ['chart-js', 'jquery', 'dashboard', 'postbox'],
             '1.0.0',
             true
         );
