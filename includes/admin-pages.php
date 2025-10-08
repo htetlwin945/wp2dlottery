@@ -761,9 +761,21 @@ function custom_lottery_payouts_page_callback() {
     $selected_date = isset($_GET['payout_date']) ? sanitize_text_field($_GET['payout_date']) : $default_date;
     $selected_session = isset($_GET['draw_session']) ? sanitize_text_field($_GET['draw_session']) : $default_session;
 
+    // Fetch the winning number from the dedicated table
+    $table_winning_numbers = $wpdb->prefix . 'lotto_winning_numbers';
+    $winning_number_obj = $wpdb->get_row($wpdb->prepare(
+        "SELECT winning_number FROM $table_winning_numbers WHERE draw_date = %s AND draw_session = %s",
+        $selected_date, $selected_session
+    ));
+    $winning_number = $winning_number_obj ? $winning_number_obj->winning_number : null;
+
+    // If a winning number is found, ensure all matching entries are flagged as winners.
+    if ($winning_number) {
+        custom_lottery_identify_winners($selected_session, $winning_number, $selected_date);
+    }
+
     $start_datetime = $selected_date . ' 00:00:00';
     $end_datetime = $selected_date . ' 23:59:59';
-
     $winners = $wpdb->get_results($wpdb->prepare(
         "SELECT * FROM $table_entries WHERE is_winner = 1 AND draw_session = %s AND timestamp BETWEEN %s AND %s ORDER BY customer_name ASC",
         $selected_session, $start_datetime, $end_datetime
@@ -798,6 +810,10 @@ function custom_lottery_payouts_page_callback() {
 
         <h2><?php printf(esc_html__('Winners for %s session on %s', 'custom-lottery'), esc_html($selected_session), esc_html($selected_date)); ?></h2>
 
+        <?php if ($winning_number) : ?>
+            <p><strong><?php printf(esc_html__('Winning Number: %s', 'custom-lottery'), esc_html($winning_number)); ?></strong></p>
+        <?php endif; ?>
+
         <table class="wp-list-table widefat fixed striped">
             <thead>
                 <tr>
@@ -810,38 +826,42 @@ function custom_lottery_payouts_page_callback() {
                 </tr>
             </thead>
             <tbody>
-                <?php if ($winners) :
-                    $payout_rate = get_option('custom_lottery_payout_rate', 80);
-                    foreach ($winners as $winner) :
-                    $amount_won = $winner->amount * $payout_rate;
-                ?>
-                    <tr>
-                        <td><?php echo esc_html($winner->customer_name); ?></td>
-                        <td><?php echo esc_html($winner->phone); ?></td>
-                        <td><?php echo esc_html($winner->lottery_number); ?></td>
-                        <td><?php echo number_format($amount_won, 2); ?></td>
-                        <td><?php echo $winner->paid_status ? esc_html__('Paid', 'custom-lottery') : esc_html__('Unpaid', 'custom-lottery'); ?></td>
-                        <td>
-                            <?php if (!$winner->paid_status) :
-                                $mark_paid_url = wp_nonce_url(
-                                    add_query_arg([
-                                        'page' => 'custom-lottery-payouts',
-                                        'action' => 'mark_paid',
-                                        'entry_id' => $winner->id,
-                                        'payout_date' => $selected_date,
-                                        'draw_session' => $selected_session,
-                                    ], admin_url('admin.php')),
-                                    'mark_paid_' . $winner->id
-                                );
-                            ?>
-                                <a href="<?php echo esc_url($mark_paid_url); ?>" class="button button-primary"><?php echo esc_html__('Mark as Paid', 'custom-lottery'); ?></a>
-                            <?php else: ?>
-                                -
-                            <?php endif; ?>
-                        </td>
-                    </tr>
-                <?php endforeach; else : ?>
-                    <tr><td colspan="6"><?php echo esc_html__('No winners found for this session.', 'custom-lottery'); ?></td></tr>
+                <?php if ($winning_number) : ?>
+                    <?php if ($winners) :
+                        $payout_rate = get_option('custom_lottery_payout_rate', 80);
+                        foreach ($winners as $winner) :
+                        $amount_won = $winner->amount * $payout_rate;
+                    ?>
+                        <tr>
+                            <td><?php echo esc_html($winner->customer_name); ?></td>
+                            <td><?php echo esc_html($winner->phone); ?></td>
+                            <td><?php echo esc_html($winner->lottery_number); ?></td>
+                            <td><?php echo number_format($amount_won, 2); ?></td>
+                            <td><?php echo $winner->paid_status ? esc_html__('Paid', 'custom-lottery') : esc_html__('Unpaid', 'custom-lottery'); ?></td>
+                            <td>
+                                <?php if (!$winner->paid_status) :
+                                    $mark_paid_url = wp_nonce_url(
+                                        add_query_arg([
+                                            'page' => 'custom-lottery-payouts',
+                                            'action' => 'mark_paid',
+                                            'entry_id' => $winner->id,
+                                            'payout_date' => $selected_date,
+                                            'draw_session' => $selected_session,
+                                        ], admin_url('admin.php')),
+                                        'mark_paid_' . $winner->id
+                                    );
+                                ?>
+                                    <a href="<?php echo esc_url($mark_paid_url); ?>" class="button button-primary"><?php echo esc_html__('Mark as Paid', 'custom-lottery'); ?></a>
+                                <?php else: ?>
+                                    -
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; else : ?>
+                        <tr><td colspan="6"><?php echo esc_html__('No winners found for this session.', 'custom-lottery'); ?></td></tr>
+                    <?php endif; ?>
+                <?php else : ?>
+                    <tr><td colspan="6"><?php echo esc_html__('No winning number has been recorded for this session yet.', 'custom-lottery'); ?></td></tr>
                 <?php endif; ?>
             </tbody>
         </table>
