@@ -25,6 +25,7 @@ define( 'CUSTOM_LOTTERY_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 // Include the class files and functions.
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/class-lotto-entries-list-table.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/class-lotto-customers-list-table.php' );
+require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/class-lotto-agents-list-table.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/db-setup.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/admin-pages.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/ajax-handlers.php' );

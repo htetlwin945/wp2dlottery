@@ -89,6 +89,7 @@ function activate_custom_lottery_plugin() {
         user_id bigint(20) UNSIGNED NOT NULL,
         agent_type varchar(20) NOT NULL, -- 'commission', 'cover'
         commission_rate decimal(5, 2) DEFAULT 0.00,
+        per_number_limit decimal(10, 2) DEFAULT 0.00 NOT NULL,
         parent_agent_id bigint(20) DEFAULT NULL,
         status varchar(20) DEFAULT 'active' NOT NULL,
         created_at datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,

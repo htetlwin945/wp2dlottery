@@ -102,6 +102,15 @@ function custom_lottery_admin_menu() {
 
     add_submenu_page(
         'custom-lottery-dashboard',
+        __( 'Agents', 'custom-lottery' ),
+        __( 'Agents', 'custom-lottery' ),
+        'manage_options',
+        'custom-lottery-agents',
+        'custom_lottery_agents_page_callback'
+    );
+
+    add_submenu_page(
+        'custom-lottery-dashboard',
         'Lottery Settings',
         'Settings',
         'manage_options',
@@ -269,6 +278,150 @@ function custom_lottery_tools_page_callback() {
         </div>
     </div>
     <?php
+}
+
+/**
+ * Callback function for the Agents page.
+ */
+function custom_lottery_agents_page_callback() {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'lotto_agents';
+    $page_slug = 'custom-lottery-agents';
+
+    $action = isset($_REQUEST['action']) ? sanitize_key($_REQUEST['action']) : 'list';
+    $agent_id = isset($_REQUEST['agent_id']) ? absint($_REQUEST['agent_id']) : 0;
+
+    // Handle form submission for adding/editing an agent
+    if (isset($_POST['submit_agent']) && check_admin_referer('cl_save_agent_action', 'cl_save_agent_nonce')) {
+        $agent_id = absint($_POST['agent_id']);
+        $user_id = absint($_POST['user_id']);
+        $agent_type = sanitize_text_field($_POST['agent_type']);
+        $commission_rate = isset($_POST['commission_rate']) ? floatval($_POST['commission_rate']) : 0.00;
+        $per_number_limit = isset($_POST['per_number_limit']) ? floatval($_POST['per_number_limit']) : 0.00;
+        $status = sanitize_text_field($_POST['status']);
+
+        $data = [
+            'user_id' => $user_id,
+            'agent_type' => $agent_type,
+            'commission_rate' => ($agent_type === 'commission') ? $commission_rate : 0.00,
+            'per_number_limit' => ($agent_type === 'commission') ? $per_number_limit : 0.00,
+            'status' => $status,
+        ];
+
+        if ($agent_id > 0) { // Update existing agent
+            if ($wpdb->update($table_name, $data, ['id' => $agent_id])) {
+                echo '<div class="updated"><p>' . esc_html__('Agent updated successfully.', 'custom-lottery') . '</p></div>';
+            }
+        } else { // Add new agent
+            $data['created_at'] = current_time('mysql');
+            if ($wpdb->insert($table_name, $data)) {
+                echo '<div class="updated"><p>' . esc_html__('Agent added successfully.', 'custom-lottery') . '</p></div>';
+            }
+        }
+        $action = 'list'; // Go back to the list view
+    }
+
+    // Handle deletion
+    if ($action === 'delete' && $agent_id > 0) {
+        $nonce = isset($_REQUEST['_wpnonce']) ? $_REQUEST['_wpnonce'] : '';
+        if (wp_verify_nonce($nonce, 'cl_delete_agent_' . $agent_id)) {
+            if ($wpdb->delete($table_name, ['id' => $agent_id])) {
+                echo '<div class="updated"><p>' . esc_html__('Agent deleted successfully.', 'custom-lottery') . '</p></div>';
+            }
+        } else {
+            echo '<div class="error"><p>' . esc_html__('Security check failed.', 'custom-lottery') . '</p></div>';
+        }
+        $action = 'list'; // Go back to the list view
+    }
+
+    // Display add/edit form or the list table
+    if ($action === 'add' || ($action === 'edit' && $agent_id > 0)) {
+        $agent = null;
+        if ($agent_id > 0) {
+            $agent = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE id = %d", $agent_id));
+        }
+        $form_title = $agent ? __('Edit Agent', 'custom-lottery') : __('Add New Agent', 'custom-lottery');
+        $button_text = $agent ? __('Save Changes', 'custom-lottery') : __('Add Agent', 'custom-lottery');
+
+        $users_args = [
+            'role__in' => ['commission_agent', 'cover_agent'],
+            'fields' => ['ID', 'display_name'],
+        ];
+        $agents_users = get_users($users_args);
+        ?>
+        <div class="wrap">
+            <h1><?php echo esc_html($form_title); ?></h1>
+            <a href="?page=<?php echo esc_attr($page_slug); ?>" class="button">&larr; <?php esc_html_e('Back to Agents List', 'custom-lottery'); ?></a>
+            <form method="post" style="margin-top: 20px;">
+                <input type="hidden" name="agent_id" value="<?php echo esc_attr($agent_id); ?>">
+                <?php wp_nonce_field('cl_save_agent_action', 'cl_save_agent_nonce'); ?>
+                <table class="form-table">
+                    <tr>
+                        <th scope="row"><label for="user_id"><?php esc_html_e('User', 'custom-lottery'); ?></label></th>
+                        <td>
+                            <select id="user_id" name="user_id" required>
+                                <option value=""><?php esc_html_e('-- Select a User --', 'custom-lottery'); ?></option>
+                                <?php foreach ($agents_users as $user) : ?>
+                                    <option value="<?php echo esc_attr($user->ID); ?>" <?php if ($agent) selected($agent->user_id, $user->ID); ?>><?php echo esc_html($user->display_name); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="agent_type"><?php esc_html_e('Agent Type', 'custom-lottery'); ?></label></th>
+                        <td>
+                            <select id="agent_type" name="agent_type" required>
+                                <option value="commission" <?php if ($agent) selected($agent->agent_type, 'commission'); ?>><?php esc_html_e('Commission', 'custom-lottery'); ?></option>
+                                <option value="cover" <?php if ($agent) selected($agent->agent_type, 'cover'); ?>><?php esc_html_e('Cover', 'custom-lottery'); ?></option>
+                            </select>
+                        </td>
+                    </tr>
+                    <tr class="commission-only-row">
+                        <th scope="row"><label for="commission_rate"><?php esc_html_e('Commission Rate (%)', 'custom-lottery'); ?></label></th>
+                        <td><input type="number" id="commission_rate" name="commission_rate" value="<?php echo $agent ? esc_attr($agent->commission_rate) : '0.00'; ?>" class="small-text" step="0.01" min="0"></td>
+                    </tr>
+                    <tr class="commission-only-row">
+                        <th scope="row"><label for="per_number_limit"><?php esc_html_e('Per-Number Limit Amount', 'custom-lottery'); ?></label></th>
+                        <td><input type="number" id="per_number_limit" name="per_number_limit" value="<?php echo $agent ? esc_attr($agent->per_number_limit) : '0.00'; ?>" class="small-text" step="0.01" min="0"></td>
+                    </tr>
+                    <tr>
+                        <th scope="row"><label for="status"><?php esc_html_e('Status', 'custom-lottery'); ?></label></th>
+                        <td>
+                            <select id="status" name="status" required>
+                                <option value="active" <?php if ($agent) selected($agent->status, 'active'); ?>><?php esc_html_e('Active', 'custom-lottery'); ?></option>
+                                <option value="inactive" <?php if ($agent) selected($agent->status, 'inactive'); ?>><?php esc_html_e('Inactive', 'custom-lottery'); ?></option>
+                            </select>
+                        </td>
+                    </tr>
+                </table>
+                <?php submit_button($button_text, 'primary', 'submit_agent'); ?>
+            </form>
+        </div>
+        <script>
+            jQuery(document).ready(function($) {
+                function toggleCommissionFields() {
+                    if ($('#agent_type').val() === 'commission') {
+                        $('.commission-only-row').show();
+                    } else {
+                        $('.commission-only-row').hide();
+                    }
+                }
+                toggleCommissionFields();
+                $('#agent_type').on('change', toggleCommissionFields);
+            });
+        </script>
+        <?php
+    } else {
+        echo '<div class="wrap">';
+        echo '<h1 class="wp-heading-inline">' . esc_html__('Agents', 'custom-lottery') . '</h1>';
+        echo '<a href="?page=' . esc_attr($page_slug) . '&action=add" class="page-title-action">' . esc_html__('Add New', 'custom-lottery') . '</a>';
+
+        $agents_list_table = new Lotto_Agents_List_Table();
+        $agents_list_table->prepare_items();
+        $agents_list_table->display();
+
+        echo '</div>';
+    }
 }
 
 /**
