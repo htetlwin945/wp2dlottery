@@ -558,6 +558,11 @@ function custom_lottery_entry_page_callback() {
         $default_session = '4:30 PM';
     }
     ?>
+    <style>
+        .entry-row { display: flex; align-items: center; margin-bottom: 10px; }
+        .entry-row input { margin-right: 10px; }
+        .entry-row .remove-entry-row { cursor: pointer; color: red; }
+    </style>
     <div class="wrap">
         <h1><?php echo esc_html__( 'Lottery Entry', 'custom-lottery' ); ?></h1>
         <form id="lottery-entry-form" method="post">
@@ -573,18 +578,6 @@ function custom_lottery_entry_page_callback() {
                         <td><input type="text" id="phone" name="phone" class="regular-text" required></td>
                     </tr>
                     <tr>
-                        <th scope="row"><label for="lottery-number"><?php echo esc_html__( 'Lottery Number', 'custom-lottery' ); ?></label></th>
-                        <td><input type="text" id="lottery-number" name="lottery_number" maxlength="2" pattern="\d{2}" class="small-text" required></td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><label for="amount"><?php echo esc_html__( 'Amount (Kyat)', 'custom-lottery' ); ?></label></th>
-                        <td><input type="number" id="amount" name="amount" class="small-text" step="100" min="0" required></td>
-                    </tr>
-                    <tr>
-                        <th scope="row"><label for="reverse-entry"><?php echo esc_html__( 'Reverse ("R")', 'custom-lottery' ); ?></label></th>
-                        <td><input type="checkbox" id="reverse-entry" name="reverse_entry" value="1"></td>
-                    </tr>
-                    <tr>
                         <th scope="row"><label for="draw-session"><?php echo esc_html__( 'Draw Session', 'custom-lottery' ); ?></label></th>
                         <td>
                             <select id="draw-session" name="draw_session">
@@ -595,24 +588,27 @@ function custom_lottery_entry_page_callback() {
                     </tr>
                 </tbody>
             </table>
+
+            <hr>
+            <h2><?php echo esc_html__( 'Entries', 'custom-lottery' ); ?></h2>
+            <div id="entry-rows-wrapper">
+                <div class="entry-row">
+                    <input type="text" name="lottery_number[]" placeholder="Number (e.g., 45)" maxlength="2" pattern="\\d{2}" class="small-text" required>
+                    <input type="number" name="amount[]" placeholder="Amount" class="small-text" step="100" min="0" required>
+                    <label style="margin-left: 5px; margin-right: 10px;">
+                        <input type="checkbox" name="reverse_entry[]" value="1"> <?php echo esc_html__( 'Reverse ("R")', 'custom-lottery' ); ?>
+                    </label>
+                    <span class="remove-entry-row" style="display:none;">&times;</span>
+                </div>
+            </div>
+            <button type="button" id="add-entry-row" class="button" style="margin-top: 10px;"><?php echo esc_html__( 'Add More', 'custom-lottery' ); ?></button>
+
             <p class="submit">
-                <button type="submit" class="button button-primary"><?php echo esc_html__( 'Add Entry', 'custom-lottery' ); ?></button>
+                <button type="submit" class="button button-primary"><?php echo esc_html__( 'Submit All Entries', 'custom-lottery' ); ?></button>
             </p>
         </form>
         <div id="form-response"></div>
-        <button id="print-receipt-button" class="button" style="display: none; margin-top: 10px;"><?php echo esc_html__( 'Print Last Receipt', 'custom-lottery' ); ?></button>
-
-        <hr style="margin-top: 40px;">
-
-        <h2><?php echo esc_html__( 'Quick Entry Mode (Bulk Import)', 'custom-lottery' ); ?></h2>
-        <p><?php echo esc_html__( 'Enter multiple bets at once. Format: Number-Amount, Number R-Amount (e.g., 23-1000, 45 R-500, 81-2000)', 'custom-lottery' ); ?></p>
-        <form id="lottery-bulk-entry-form">
-            <textarea id="bulk-entry-data" rows="10" cols="50" placeholder="23-1000, 45 R-500, 81-2000"></textarea>
-            <p class="submit">
-                <button type="submit" class="button button-primary"><?php echo esc_html__( 'Add Bulk Entries', 'custom-lottery' ); ?></button>
-            </p>
-        </form>
-        <div id="bulk-form-response"></div>
+        <button id="print-receipt-button" class="button" style="display: none; margin-top: 10px;"><?php echo esc_html__( 'Print Receipt', 'custom-lottery' ); ?></button>
     </div>
     <?php
 }

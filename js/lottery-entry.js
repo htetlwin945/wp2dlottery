@@ -8,23 +8,40 @@ jQuery(document).ready(function($) {
                 data: {
                     action: 'search_customers',
                     term: request.term,
-                    lottery_entry_nonce: $('#lottery_entry_nonce').val() // Pass nonce for security
+                    lottery_entry_nonce: $('#lottery_entry_nonce').val()
                 },
                 success: function(data) {
                     response(data);
                 }
             });
         },
-        minLength: 2, // Start searching after 2 characters
+        minLength: 2,
         select: function(event, ui) {
-            event.preventDefault(); // Prevent the default action of replacing the value with the 'value' property
-            $('#phone').val(ui.item.value); // Set phone number
-            $('#customer-name').val(ui.item.name); // Set customer name
+            event.preventDefault();
+            $('#phone').val(ui.item.value);
+            $('#customer-name').val(ui.item.name);
         }
     });
 
     var lastTransaction = null;
+    var entryRowWrapper = $('#entry-rows-wrapper');
 
+    // Add new entry row
+    $('#add-entry-row').on('click', function() {
+        var newRow = entryRowWrapper.find('.entry-row:first').clone(true);
+        newRow.find('input').val('');
+        newRow.find('input[type="checkbox"]').prop('checked', false);
+        newRow.find('.remove-entry-row').show();
+        entryRowWrapper.append(newRow);
+        newRow.find('input[name="lottery_number[]"]').focus();
+    });
+
+    // Remove entry row
+    entryRowWrapper.on('click', '.remove-entry-row', function() {
+        $(this).closest('.entry-row').remove();
+    });
+
+    // Handle the unified form submission
     $('#lottery-entry-form').on('submit', function(e) {
         e.preventDefault();
 
@@ -33,44 +50,77 @@ jQuery(document).ready(function($) {
         var submitButton = form.find('button[type="submit"]');
         var printButton = $('#print-receipt-button');
 
-        // Hide previous receipt button
         printButton.hide();
+        responseDiv.html('');
 
-        // Basic validation
-        var lotteryNumber = $('#lottery-number').val();
-        if (!/^\d{2}$/.test(lotteryNumber)) {
-            responseDiv.html('<div class="error"><p>Please enter a valid 2-digit number.</p></div>');
+        var entries = [];
+        var isValid = true;
+        $('.entry-row').each(function() {
+            var row = $(this);
+            var lotteryNumber = row.find('input[name="lottery_number[]"]').val();
+            var amount = row.find('input[name="amount[]"]').val();
+            var isReverse = row.find('input[name="reverse_entry[]"]').is(':checked');
+
+            if (!/^\d{2}$/.test(lotteryNumber) || !/^\d+$/.test(amount) || parseInt(amount) <= 0) {
+                isValid = false;
+                return false; // Break the loop
+            }
+
+            entries.push({
+                number: lotteryNumber,
+                amount: amount,
+                is_reverse: isReverse
+            });
+        });
+
+        if (!isValid) {
+            responseDiv.html('<div class="error"><p>All entry rows must have a valid 2-digit number and a positive amount.</p></div>');
             return;
         }
 
-        var data = form.serialize();
+        if (entries.length === 0) {
+            responseDiv.html('<div class="error"><p>Please add at least one lottery entry.</p></div>');
+            return;
+        }
+
+        var formData = {
+            action: 'submit_lottery_entries',
+            lottery_entry_nonce: $('#lottery_entry_nonce').val(),
+            customer_name: $('#customer-name').val(),
+            phone: $('#phone').val(),
+            draw_session: $('#draw-session').val(),
+            entries: JSON.stringify(entries) // Stringify the array for reliable POSTing
+        };
 
         $.ajax({
             type: 'POST',
-            url: ajaxurl, // ajaxurl is a global variable in WordPress admin
-            data: data + '&action=add_lottery_entry',
+            url: ajaxurl,
+            data: formData,
             beforeSend: function() {
                 submitButton.prop('disabled', true);
                 responseDiv.html('<p>Submitting...</p>');
             },
             success: function(response) {
                 if (response.success) {
-                    responseDiv.html('<div class="updated"><p>' + response.data + '</p></div>');
+                    responseDiv.html('<div class="updated"><p>' + response.data.message + '</p></div>');
 
                     // Store transaction for receipt
                     lastTransaction = {
-                        customerName: form.find('#customer-name').val(),
-                        phone: form.find('#phone').val(),
-                        number: form.find('#lottery-number').val(),
-                        amount: form.find('#amount').val(),
-                        isReverse: form.find('#reverse-entry').is(':checked'),
-                        session: form.find('#draw-session').val(),
+                        customerName: formData.customer_name,
+                        phone: formData.phone,
+                        session: formData.draw_session,
+                        entries: response.data.entries, // Use processed entries from backend
+                        totalAmount: response.data.total_amount,
                         date: new Date().toLocaleString('en-US', { timeZone: 'Asia/Yangon' })
                     };
 
-                    printButton.show(); // Show the print button
-                    form[0].reset();
-                    $('#lottery-number').focus();
+                    printButton.show();
+
+                    // Reset only the entry rows, not customer info
+                    entryRowWrapper.html('');
+                    $('#add-entry-row').trigger('click'); // Add a fresh row back
+                    $('#customer-name').focus();
+
                 } else {
                     responseDiv.html('<div class="error"><p>' + response.data + '</p></div>');
                     printButton.hide();
@@ -86,20 +136,31 @@ jQuery(document).ready(function($) {
         });
     });
 
+    // Update receipt printing logic
     $('#print-receipt-button').on('click', function() {
         if (!lastTransaction) return;
+
+        var receiptItems = '';
+        lastTransaction.entries.forEach(function(entry) {
+            receiptItems += `
+                <div class="item">
+                    <span>${entry.lottery_number} ${entry.is_reverse ? '(R)' : ''}</span>
+                    <span>${parseInt(entry.amount).toLocaleString()} Ks</span>
+                </div>
+            `;
+        });
 
         var receiptContent = `
             <html>
             <head>
                 <title>Lottery Receipt</title>
                 <style>
-                    body { font-family: monospace; }
-                    .receipt { width: 300px; margin: 0 auto; padding: 10px;}
-                    h2 { text-align: center; margin: 0; }
+                    body { font-family: monospace; font-size: 12px; }
+                    .receipt { width: 280px; margin: 0 auto; padding: 10px;}
+                    h2 { text-align: center; margin: 0 0 10px 0; }
                     p { margin: 5px 0; }
                     .item { display: flex; justify-content: space-between; }
-                    hr { border: none; border-top: 1px dashed #000; }
+                    hr { border: none; border-top: 1px dashed #000; margin: 5px 0;}
                 </style>
             </head>
             <body>
@@ -110,93 +171,21 @@ jQuery(document).ready(function($) {
                     <p><strong>Phone:</strong> ${lastTransaction.phone}</p>
                     <p><strong>Session:</strong> ${lastTransaction.session}</p>
                     <hr>
-                    <div class="item">
-                        <span>${lastTransaction.number}</span>
-                        <span>${lastTransaction.amount} Ks</span>
-                    </div>
-        `;
-
-        var totalAmount = parseInt(lastTransaction.amount);
-        if (lastTransaction.isReverse) {
-            var reversedNumber = lastTransaction.number.split('').reverse().join('');
-            if (lastTransaction.number !== reversedNumber) {
-                receiptContent += `
-                    <div class="item">
-                        <span>${reversedNumber} (R)</span>
-                        <span>${lastTransaction.amount} Ks</span>
-                    </div>
-                `;
-                totalAmount += parseInt(lastTransaction.amount);
-            }
-        }
-
-        receiptContent += `
+                    ${receiptItems}
                     <hr>
                     <div class="item">
                         <strong>Total:</strong>
-                        <strong>${totalAmount} Ks</strong>
+                        <strong>${lastTransaction.totalAmount.toLocaleString()} Ks</strong>
                     </div>
                 </div>
             </body>
             </html>
         `;
 
-        var printWindow = window.open('', '', 'height=400,width=350');
+        var printWindow = window.open('', '', 'height=500,width=350');
         printWindow.document.write(receiptContent);
         printWindow.document.close();
         printWindow.focus();
         printWindow.print();
-    });
-
-    // Handle the bulk entry form submission
-    $('#lottery-bulk-entry-form').on('submit', function(e) {
-        e.preventDefault();
-
-        var form = $(this);
-        var responseDiv = $('#bulk-form-response');
-        var submitButton = form.find('button[type="submit"]');
-
-        // Get data from the main form as well
-        var customerName = $('#customer-name').val();
-        var phone = $('#phone').val();
-        var drawSession = $('#draw-session').val();
-        var bulkData = $('#bulk-entry-data').val();
-        var nonce = $('#lottery_entry_nonce').val();
-
-        if (!customerName || !phone || !drawSession || !bulkData) {
-            responseDiv.html('<div class="error"><p>Please fill in customer name, phone, and session in the main form before using quick entry.</p></div>');
-            return;
-        }
-
-        $.ajax({
-            type: 'POST',
-            url: ajaxurl,
-            data: {
-                action: 'bulk_add_lottery_entry',
-                customer_name: customerName,
-                phone: phone,
-                draw_session: drawSession,
-                bulk_data: bulkData,
-                lottery_entry_nonce: nonce
-            },
-            beforeSend: function() {
-                submitButton.prop('disabled', true);
-                responseDiv.html('<p>Submitting...</p>');
-            },
-            success: function(response) {
-                if (response.success) {
-                    responseDiv.html('<div class="updated"><p>' + response.data + '</p></div>');
-                    form[0].reset(); // Clear the bulk entry form
-                } else {
-                    responseDiv.html('<div class="error"><p>' + response.data + '</p></div>');
-                }
-            },
-            error: function() {
-                responseDiv.html('<div class="error"><p>An error occurred. Please try again.</p></div>');
-            },
-            complete: function() {
-                submitButton.prop('disabled', false);
-            }
-        });
     });
 });
