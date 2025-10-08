@@ -23,19 +23,25 @@ function custom_lottery_log_action($action, $details) {
 /**
  * Creates or updates a customer in the database based on the phone number.
  */
-function custom_lottery_update_or_create_customer($name, $phone) {
+function custom_lottery_update_or_create_customer($name, $phone, $agent_id = null) {
     global $wpdb;
     $table_customers = $wpdb->prefix . 'lotto_customers';
 
-    $wpdb->query($wpdb->prepare(
-        "INSERT INTO $table_customers (customer_name, phone, last_seen) VALUES (%s, %s, %s)
-         ON DUPLICATE KEY UPDATE customer_name = %s, last_seen = %s",
-        $name,
-        $phone,
-        current_time('mysql'),
-        $name,
-        current_time('mysql')
-    ));
+    if ($agent_id) {
+        $wpdb->query($wpdb->prepare(
+            "INSERT INTO $table_customers (customer_name, phone, last_seen, agent_id) VALUES (%s, %s, %s, %d)
+             ON DUPLICATE KEY UPDATE customer_name = %s, last_seen = %s, agent_id = IF(agent_id IS NULL, %d, agent_id)",
+            $name, $phone, current_time('mysql'), $agent_id,
+            $name, current_time('mysql'), $agent_id
+        ));
+    } else {
+        $wpdb->query($wpdb->prepare(
+            "INSERT INTO $table_customers (customer_name, phone, last_seen) VALUES (%s, %s, %s)
+             ON DUPLICATE KEY UPDATE customer_name = %s, last_seen = %s",
+            $name, $phone, current_time('mysql'),
+            $name, current_time('mysql')
+        ));
+    }
 }
 
 /**
@@ -45,18 +51,39 @@ function check_and_auto_block_number($number, $session, $date) {
     global $wpdb;
     $table_entries = $wpdb->prefix . 'lotto_entries';
     $table_limits = $wpdb->prefix . 'lotto_limits';
+    $table_agents = $wpdb->prefix . 'lotto_agents';
 
-    $limit_amount = get_option('custom_lottery_number_limit', 5000);
+    if (!get_option('custom_lottery_enable_auto_blocking')) {
+        return;
+    }
+
+    $current_user = wp_get_current_user();
+    $limit_amount = 0;
+    $number_total_amount = 0;
 
     $start_datetime = $date . ' 00:00:00';
     $end_datetime = $date . ' 23:59:59';
 
-    $number_total_amount = $wpdb->get_var($wpdb->prepare(
-        "SELECT SUM(amount) FROM $table_entries WHERE lottery_number = %s AND draw_session = %s AND timestamp BETWEEN %s AND %s",
-        $number, $session, $start_datetime, $end_datetime
-    ));
+    $is_agent = in_array('commission_agent', (array) $current_user->roles) && get_option('custom_lottery_enable_commission_agent_system');
 
-    if ($number_total_amount >= $limit_amount) {
+    if ($is_agent) {
+        $agent = $wpdb->get_row($wpdb->prepare("SELECT id, per_number_limit FROM $table_agents WHERE user_id = %d", $current_user->ID));
+        if ($agent && $agent->per_number_limit > 0) {
+            $limit_amount = $agent->per_number_limit;
+            $number_total_amount = $wpdb->get_var($wpdb->prepare(
+                "SELECT SUM(amount) FROM $table_entries WHERE lottery_number = %s AND draw_session = %s AND agent_id = %d AND timestamp BETWEEN %s AND %s",
+                $number, $session, $agent->id, $start_datetime, $end_datetime
+            ));
+        }
+    } else {
+        $limit_amount = get_option('custom_lottery_number_limit', 5000);
+        $number_total_amount = $wpdb->get_var($wpdb->prepare(
+            "SELECT SUM(amount) FROM $table_entries WHERE lottery_number = %s AND draw_session = %s AND timestamp BETWEEN %s AND %s",
+            $number, $session, $start_datetime, $end_datetime
+        ));
+    }
+
+    if ($limit_amount > 0 && $number_total_amount >= $limit_amount) {
         $is_already_blocked = $wpdb->get_var($wpdb->prepare(
             "SELECT id FROM $table_limits WHERE lottery_number = %s AND draw_date = %s AND draw_session = %s",
             $number, $date, $session
