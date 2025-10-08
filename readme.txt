@@ -4,7 +4,7 @@ Donate link: https://example.com/
 Tags: lottery, 2-digit
 Requires at least: 5.0
 Tested up to: 6.0
-Stable tag: 1.3.2
+Stable tag: 1.3.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -33,6 +33,10 @@ Once activated, you can access all features through the "Lottery" menu in the Wo
 3. The settings page.
 
 == Changelog ==
+
+= 1.3.3 =
+* Feature: The "Clear Data by Date" tool in the Tools page now also clears the winning numbers for the selected date, ensuring a more complete data reset.
+* Fix: Made the winning number fetch cron job more reliable by switching from a live API endpoint to a historical one. This prevents a race condition where the cron job could run before the winning number was available on the live feed.
 
 = 1.3.2 =
 * Feature: Enhanced the "Financial Report" to include profit/loss calculation. The report now shows the actual payout and net profit/loss for a session if the winning number has been drawn.

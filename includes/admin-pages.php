@@ -220,12 +220,16 @@ function custom_lottery_tools_page_callback() {
             $table_entries = $wpdb->prefix . 'lotto_entries';
             $table_limits = $wpdb->prefix . 'lotto_limits';
             $table_audit = $wpdb->prefix . 'lotto_audit_log';
+            $table_winning_numbers = $wpdb->prefix . 'lotto_winning_numbers';
 
             // Delete entries
             $wpdb->query($wpdb->prepare("DELETE FROM $table_entries WHERE timestamp BETWEEN %s AND %s", $start_datetime, $end_datetime));
 
             // Delete limits
             $wpdb->query($wpdb->prepare("DELETE FROM $table_limits WHERE draw_date = %s", $date_to_clear));
+
+            // Delete winning numbers
+            $wpdb->query($wpdb->prepare("DELETE FROM $table_winning_numbers WHERE draw_date = %s", $date_to_clear));
 
             // Delete audit logs
             $wpdb->query($wpdb->prepare("DELETE FROM $table_audit WHERE timestamp BETWEEN %s AND %s", $start_datetime, $end_datetime));
