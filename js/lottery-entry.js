@@ -1,6 +1,18 @@
-jQuery(document).ready(function($) {
-    // Customer search autocomplete for the phone field
-    $('#phone').autocomplete({
+window.initializeLotteryForm = function($container) {
+    var $ = jQuery;
+
+    // --- Unbind any previous events to prevent double-firing ---
+    $container.find('#lottery-entry-form').off('submit');
+    $container.find('#add-entry-row').off('click');
+    $container.find('#entry-rows-wrapper').off('click', '.remove-entry-row');
+    $container.find('#print-receipt-button').off('click');
+    if ($container.find('#phone').data('ui-autocomplete')) {
+        $container.find('#phone').autocomplete('destroy');
+    }
+
+    // --- Re-initialize all logic within the provided container ---
+
+    $container.find('#phone').autocomplete({
         source: function(request, response) {
             $.ajax({
                 url: ajaxurl,
@@ -8,7 +20,7 @@ jQuery(document).ready(function($) {
                 data: {
                     action: 'search_customers',
                     term: request.term,
-                    lottery_entry_nonce: $('#lottery_entry_nonce').val()
+                    lottery_entry_nonce: $container.find('#lottery_entry_nonce').val()
                 },
                 success: function(data) {
                     response(data);
@@ -18,16 +30,16 @@ jQuery(document).ready(function($) {
         minLength: 2,
         select: function(event, ui) {
             event.preventDefault();
-            $('#phone').val(ui.item.value);
-            $('#customer-name').val(ui.item.name);
-        }
+            $container.find('#phone').val(ui.item.value);
+            $container.find('#customer-name').val(ui.item.name);
+        },
+        appendTo: $container
     });
 
     var lastTransaction = null;
-    var entryRowWrapper = $('#entry-rows-wrapper');
+    var entryRowWrapper = $container.find('#entry-rows-wrapper');
 
-    // Add new entry row
-    $('#add-entry-row').on('click', function() {
+    $container.find('#add-entry-row').on('click', function() {
         var newRow = entryRowWrapper.find('.entry-row:first').clone(true);
         newRow.find('input').val('');
         newRow.find('input[type="checkbox"]').prop('checked', false);
@@ -36,26 +48,26 @@ jQuery(document).ready(function($) {
         newRow.find('input[name="lottery_number[]"]').focus();
     });
 
-    // Remove entry row
     entryRowWrapper.on('click', '.remove-entry-row', function() {
-        $(this).closest('.entry-row').remove();
+        if (entryRowWrapper.find('.entry-row').length > 1) {
+            $(this).closest('.entry-row').remove();
+        }
     });
 
-    // Handle the unified form submission
-    $('#lottery-entry-form').on('submit', function(e) {
+    $container.find('#lottery-entry-form').on('submit', function(e) {
         e.preventDefault();
 
         var form = $(this);
-        var responseDiv = $('#form-response');
+        var responseDiv = $container.find('#form-response');
         var submitButton = form.find('button[type="submit"]');
-        var printButton = $('#print-receipt-button');
+        var printButton = $container.find('#print-receipt-button');
 
         printButton.hide();
         responseDiv.html('');
 
         var entries = [];
         var isValid = true;
-        $('.entry-row').each(function() {
+        $container.find('.entry-row').each(function() {
             var row = $(this);
             var lotteryNumber = row.find('input[name="lottery_number[]"]').val();
             var amount = row.find('input[name="amount[]"]').val();
@@ -63,7 +75,7 @@ jQuery(document).ready(function($) {
 
             if (!/^\d{2}$/.test(lotteryNumber) || !/^\d+$/.test(amount) || parseInt(amount) <= 0) {
                 isValid = false;
-                return false; // Break the loop
+                return false;
             }
 
             entries.push({
@@ -85,11 +97,11 @@ jQuery(document).ready(function($) {
 
         var formData = {
             action: 'submit_lottery_entries',
-            lottery_entry_nonce: $('#lottery_entry_nonce').val(),
-            customer_name: $('#customer-name').val(),
-            phone: $('#phone').val(),
-            draw_session: $('#draw-session').val(),
-            entries: JSON.stringify(entries) // Stringify the array for reliable POSTing
+            lottery_entry_nonce: $container.find('#lottery_entry_nonce').val(),
+            customer_name: $container.find('#customer-name').val(),
+            phone: $container.find('#phone').val(),
+            draw_session: $container.find('#draw-session').val(),
+            entries: JSON.stringify(entries)
         };
 
         $.ajax({
@@ -104,31 +116,32 @@ jQuery(document).ready(function($) {
                 if (response.success) {
                     responseDiv.html('<div class="updated"><p>' + response.data.message + '</p></div>');
 
-                    // Store transaction for receipt
                     lastTransaction = {
                         customerName: formData.customer_name,
                         phone: formData.phone,
                         session: formData.draw_session,
-                        entries: response.data.entries, // Use processed entries from backend
+                        entries: response.data.entries,
                         totalAmount: response.data.total_amount,
                         date: new Date().toLocaleString('en-US', { timeZone: 'Asia/Yangon' })
                     };
 
                     printButton.show();
 
-                    // Reset only the entry rows, not customer info
-                    entryRowWrapper.html('');
-                    $('#add-entry-row').trigger('click'); // Add a fresh row back
-                    $('#customer-name').focus();
+                    if (!$container.is('.ui-dialog-content')) {
+                         entryRowWrapper.html('');
+                         $container.find('#add-entry-row').trigger('click');
+                         $container.find('#customer-name').val('').focus();
+                         $container.find('#phone').val('');
+                    }
 
                 } else {
-                    responseDiv.html('<div class="error"><p>' + response.data + '</p></div>');
+                    responseDiv.html('<div class="error"><p>' + (response.data || 'An unknown error occurred.') + '</p></div>');
                     printButton.hide();
                     lastTransaction = null;
                 }
             },
             error: function() {
-                responseDiv.html('<div class="error"><p>An error occurred. Please try again.</p></div>');
+                responseDiv.html('<div class="error"><p>An AJAX error occurred. Please try again.</p></div>');
             },
             complete: function() {
                 submitButton.prop('disabled', false);
@@ -136,8 +149,7 @@ jQuery(document).ready(function($) {
         });
     });
 
-    // Update receipt printing logic
-    $('#print-receipt-button').on('click', function() {
+    $container.find('#print-receipt-button').on('click', function() {
         if (!lastTransaction) return;
 
         var receiptItems = '';
@@ -188,4 +200,10 @@ jQuery(document).ready(function($) {
         printWindow.focus();
         printWindow.print();
     });
+};
+
+jQuery(document).ready(function($) {
+    if ($('body.lottery_page_custom-lottery-entry').length) {
+        window.initializeLotteryForm($('.wrap'));
+    }
 });
