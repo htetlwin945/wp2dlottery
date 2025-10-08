@@ -33,26 +33,6 @@ function custom_lottery_add_roles() {
         ]
     );
 
-    // Add Commission Agent role
-    add_role(
-        'commission_agent',
-        __('Commission Agent', 'custom-lottery'),
-        [
-            'read' => true,
-            $capability => true,
-        ]
-    );
-
-    // Add Cover Agent role
-    add_role(
-        'cover_agent',
-        __('Cover Agent', 'custom-lottery'),
-        [
-            'read' => true,
-            $capability => true,
-        ]
-    );
-
     // Add the custom capability to the Administrator role as well
     $admin_role = get_role('administrator');
     if ($admin_role) {
