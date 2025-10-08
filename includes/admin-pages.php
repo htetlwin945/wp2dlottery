@@ -100,6 +100,15 @@ function custom_lottery_admin_menu() {
         'custom_lottery_customers_page_callback'
     );
 
+    add_submenu_page(
+        'custom-lottery-dashboard',
+        'Lottery Settings',
+        'Settings',
+        'manage_options',
+        'custom-lottery-settings',
+        'custom_lottery_settings_page_callback'
+    );
+
     add_action( "load-{$dashboard_hook}", 'custom_lottery_add_dashboard_widgets' );
 }
 add_action( 'admin_menu', 'custom_lottery_admin_menu' );
@@ -433,12 +442,7 @@ function custom_lottery_all_entries_page_callback() {
         $default_date = $current_time->format('Y-m-d');
         $filter_date = isset($_GET['filter_date']) && !empty($_GET['filter_date']) ? sanitize_text_field($_GET['filter_date']) : $default_date;
 
-        $time_1201 = new DateTime($current_time->format('Y-m-d') . ' 12:01:00', $timezone);
-        $time_1630 = new DateTime($current_time->format('Y-m-d') . ' 16:30:00', $timezone);
-        $default_session = '12:01 PM';
-        if ($current_time > $time_1201 && $current_time <= $time_1630) {
-            $default_session = '4:30 PM';
-        }
+        $default_session = custom_lottery_get_current_session() ?? '12:01 PM';
         $filter_session = isset($_GET['filter_session']) ? sanitize_text_field($_GET['filter_session']) : $default_session;
 
         $start_datetime = $filter_date . ' 00:00:00';
@@ -533,12 +537,7 @@ function custom_lottery_all_entries_page_callback() {
         $current_time = new DateTime('now', $timezone);
         $default_date = $current_time->format('Y-m-d');
 
-        $time_1201 = new DateTime($current_time->format('Y-m-d') . ' 12:01:00', $timezone);
-        $time_1630 = new DateTime($current_time->format('Y-m-d') . ' 16:30:00', $timezone);
-        $default_session = '12:01 PM';
-        if ($current_time > $time_1201 && $current_time <= $time_1630) {
-            $default_session = '4:30 PM';
-        }
+        $default_session = custom_lottery_get_current_session() ?? '12:01 PM';
 
         $selected_date = isset($_GET['filter_date']) && !empty($_GET['filter_date']) ? sanitize_text_field($_GET['filter_date']) : $default_date;
         $selected_session = isset($_GET['filter_session']) ? sanitize_text_field($_GET['filter_session']) : $default_session;
@@ -579,15 +578,7 @@ function custom_lottery_all_entries_page_callback() {
  * Renders the reusable lottery entry form.
  */
 function custom_lottery_render_entry_form() {
-    $timezone = new DateTimeZone('Asia/Yangon');
-    $current_time = new DateTime('now', $timezone);
-    $time_1201 = new DateTime($current_time->format('Y-m-d') . ' 12:01:00', $timezone);
-    $time_1630 = new DateTime($current_time->format('Y-m-d') . ' 16:30:00', $timezone);
-
-    $default_session = '12:01 PM';
-    if ($current_time > $time_1201 && $current_time <= $time_1630) {
-        $default_session = '4:30 PM';
-    }
+    $default_session = custom_lottery_get_current_session() ?? '12:01 PM';
     ?>
     <form id="lottery-entry-form" method="post">
         <?php wp_nonce_field( 'lottery_entry_action', 'lottery_entry_nonce' ); ?>
@@ -664,12 +655,7 @@ function custom_lottery_reports_page_callback() {
     $current_datetime = new DateTime('now', $timezone);
     $default_date = $current_datetime->format('Y-m-d');
 
-    $time_1201 = new DateTime($current_datetime->format('Y-m-d') . ' 12:01:00', $timezone);
-    $time_1630 = new DateTime($current_datetime->format('Y-m-d') . ' 16:30:00', $timezone);
-    $default_session = '12:01 PM';
-    if ($current_datetime > $time_1201 && $current_datetime <= $time_1630) {
-        $default_session = '4:30 PM';
-    }
+    $default_session = custom_lottery_get_current_session() ?? '12:01 PM';
 
     $selected_date = isset($_GET['report_date']) ? sanitize_text_field($_GET['report_date']) : $default_date;
     $selected_session = isset($_GET['draw_session']) ? sanitize_text_field($_GET['draw_session']) : $default_session;
@@ -682,6 +668,8 @@ function custom_lottery_reports_page_callback() {
         $selected_session, $start_datetime, $end_datetime
     ));
     $total_sales = $total_sales ? $total_sales : 0;
+
+    $payout_rate = get_option('custom_lottery_payout_rate', 80);
 
     $results = $wpdb->get_results($wpdb->prepare(
         "SELECT lottery_number, SUM(amount) as total_amount FROM $table_name WHERE draw_session = %s AND timestamp BETWEEN %s AND %s GROUP BY lottery_number ORDER BY lottery_number ASC",
@@ -712,12 +700,12 @@ function custom_lottery_reports_page_callback() {
                 <tr>
                     <th><?php echo esc_html__('Lottery Number', 'custom-lottery'); ?></th>
                     <th><?php echo esc_html__('Total Amount Purchased (Kyat)', 'custom-lottery'); ?></th>
-                    <th><?php echo esc_html__('Potential Payout (x80) (Kyat)', 'custom-lottery'); ?></th>
+                    <th><?php printf(esc_html__('Potential Payout (x%d) (Kyat)', 'custom-lottery'), $payout_rate); ?></th>
                 </tr>
             </thead>
             <tbody>
                 <?php if ($results) : foreach ($results as $row) :
-                    $potential_payout = $row->total_amount * 80;
+                    $potential_payout = $row->total_amount * $payout_rate;
                     $risk_class = $potential_payout > $total_sales ? 'highlight-risk' : '';
                 ?>
                     <tr class="<?php echo $risk_class; ?>">
@@ -768,12 +756,7 @@ function custom_lottery_payouts_page_callback() {
     $current_datetime = new DateTime('now', $timezone);
     $default_date = $current_datetime->format('Y-m-d');
 
-    $time_1201 = new DateTime($current_datetime->format('Y-m-d') . ' 12:01:00', $timezone);
-    $time_1630 = new DateTime($current_datetime->format('Y-m-d') . ' 16:30:00', $timezone);
-    $default_session = '12:01 PM';
-    if ($current_datetime > $time_1201 && $current_datetime <= $time_1630) {
-        $default_session = '4:30 PM';
-    }
+    $default_session = custom_lottery_get_current_session() ?? '12:01 PM';
 
     $selected_date = isset($_GET['payout_date']) ? sanitize_text_field($_GET['payout_date']) : $default_date;
     $selected_session = isset($_GET['draw_session']) ? sanitize_text_field($_GET['draw_session']) : $default_session;
@@ -827,8 +810,10 @@ function custom_lottery_payouts_page_callback() {
                 </tr>
             </thead>
             <tbody>
-                <?php if ($winners) : foreach ($winners as $winner) :
-                    $amount_won = $winner->amount * 80;
+                <?php if ($winners) :
+                    $payout_rate = get_option('custom_lottery_payout_rate', 80);
+                    foreach ($winners as $winner) :
+                    $amount_won = $winner->amount * $payout_rate;
                 ?>
                     <tr>
                         <td><?php echo esc_html($winner->customer_name); ?></td>
