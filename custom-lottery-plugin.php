@@ -32,6 +32,8 @@ require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/cron-jobs.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/utils.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/user-roles.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/shortcodes.php' );
+require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/class-inertia-adapter.php' );
+require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/rest-api.php' );
 
 /**
  * Register activation and deactivation hooks.

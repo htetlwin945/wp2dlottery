@@ -99,8 +99,48 @@ function custom_lottery_admin_menu() {
         'custom-lottery-customers',
         'custom_lottery_customers_page_callback'
     );
+    // New SPA Page
+    add_submenu_page(
+        'custom-lottery-dashboard',
+        __( 'Lottery SPA', 'custom-lottery' ),
+        __( 'Lottery SPA', 'custom-lottery' ),
+        'enter_lottery_numbers', // Capability check
+        'custom-lottery-spa',
+        'custom_lottery_spa_page_callback'
+    );
+
+    // Add the new SPA-based customers page
+    add_submenu_page(
+        'custom-lottery-dashboard', // Parent
+        'SPA Customers', // Page Title
+        'SPA Customers', // Menu Title
+        'manage_options', // Capability
+        'custom-lottery-spa-customers', // Slug
+        'custom_lottery_spa_customers_page_callback' // Callback
+    );
 }
 add_action( 'admin_menu', 'custom_lottery_admin_menu' );
+
+/**
+ * Callback for the SPA page.
+ * This will be the main entry point for the Vue app.
+ */
+function custom_lottery_spa_page_callback() {
+    // The actual rendering is handled by the Inertia Adapter class.
+    // We just need to call it with the initial component and props.
+    custom_lottery_render_inertia('Dashboard', ['message' => 'Welcome to the Lottery SPA!']);
+}
+
+/**
+ * Callback for the SPA Customers page.
+ */
+function custom_lottery_spa_customers_page_callback() {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'lotto_customers';
+    $customers = $wpdb->get_results( "SELECT * FROM $table_name ORDER BY id DESC" );
+
+    custom_lottery_render_inertia('Customers/Index', ['customers' => $customers]);
+}
 
 /**
  * Callback for the Customers page.
