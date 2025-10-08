@@ -224,3 +224,35 @@ function custom_lottery_get_customer_results_callback() {
 }
 add_action('wp_ajax_get_customer_lottery_results', 'custom_lottery_get_customer_results_callback');
 add_action('wp_ajax_nopriv_get_customer_lottery_results', 'custom_lottery_get_customer_results_callback'); // For non-logged-in users
+
+
+/**
+ * AJAX handler for getting combined real-time dashboard widget data.
+ */
+function custom_lottery_get_dashboard_widgets_data_callback() {
+    check_ajax_referer('dashboard_nonce', 'nonce');
+
+    // Fetch data from the external API
+    $api_data = custom_lottery_fetch_api_data();
+    $api_error = null;
+
+    if (is_wp_error($api_data)) {
+        $api_error = $api_data->get_error_message();
+        $api_data = []; // Reset to avoid errors in JS
+    }
+
+    // Fetch data from the local database
+    $live_sales_data = custom_lottery_get_live_sales_data();
+    $hot_numbers_data = custom_lottery_get_top_hot_numbers();
+
+    // Combine all data into a single response
+    $response_data = [
+        'api_data'    => $api_data,
+        'api_error'   => $api_error,
+        'live_sales'  => $live_sales_data,
+        'hot_numbers' => $hot_numbers_data,
+    ];
+
+    wp_send_json_success($response_data);
+}
+add_action('wp_ajax_get_dashboard_widgets_data', 'custom_lottery_get_dashboard_widgets_data_callback');
