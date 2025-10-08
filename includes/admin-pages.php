@@ -100,6 +100,24 @@ function custom_lottery_admin_menu() {
         'custom_lottery_customers_page_callback'
     );
 
+    add_submenu_page(
+        'custom-lottery-dashboard',
+        'Lottery Settings',
+        'Settings',
+        'manage_options',
+        'custom-lottery-settings',
+        'custom_lottery_settings_page_callback'
+    );
+
+    add_submenu_page(
+        'custom-lottery-dashboard',
+        'Lottery Settings',
+        'Settings',
+        'manage_options',
+        'custom-lottery-settings',
+        'custom_lottery_settings_page_callback'
+    );
+
     add_action( "load-{$dashboard_hook}", 'custom_lottery_add_dashboard_widgets' );
 }
 add_action( 'admin_menu', 'custom_lottery_admin_menu' );

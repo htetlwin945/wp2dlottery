@@ -14,19 +14,6 @@ function custom_lottery_register_settings() {
 }
 add_action('admin_init', 'custom_lottery_register_settings');
 
-// Add settings page to menu
-function custom_lottery_add_settings_page() {
-    add_submenu_page(
-        'custom-lottery-main',
-        'Lottery Settings',
-        'Settings',
-        'manage_options',
-        'custom-lottery-settings',
-        'custom_lottery_settings_page_callback'
-    );
-}
-add_action('admin_menu', 'custom_lottery_add_settings_page');
-
 // Settings page callback
 function custom_lottery_settings_page_callback() {
     ?>
