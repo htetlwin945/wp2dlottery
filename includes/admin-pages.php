@@ -593,7 +593,7 @@ function custom_lottery_entry_page_callback() {
             <h2><?php echo esc_html__( 'Entries', 'custom-lottery' ); ?></h2>
             <div id="entry-rows-wrapper">
                 <div class="entry-row">
-                    <input type="text" name="lottery_number[]" placeholder="Number (e.g., 45)" maxlength="2" pattern="\\d{2}" class="small-text" required>
+                    <input type="text" name="lottery_number[]" placeholder="Number (e.g., 45)" maxlength="2" pattern="\d{2}" class="small-text" required>
                     <input type="number" name="amount[]" placeholder="Amount" class="small-text" step="100" min="0" required>
                     <label style="margin-left: 5px; margin-right: 10px;">
                         <input type="checkbox" name="reverse_entry[]" value="1"> <?php echo esc_html__( 'Reverse ("R")', 'custom-lottery' ); ?>
