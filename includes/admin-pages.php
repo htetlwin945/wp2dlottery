@@ -676,8 +676,31 @@ function custom_lottery_reports_page_callback() {
         $selected_session, $start_datetime, $end_datetime
     ));
 
+    // Fetch winning number to calculate profit/loss
+    $table_winning_numbers = $wpdb->prefix . 'lotto_winning_numbers';
+    $winning_number = $wpdb->get_var($wpdb->prepare(
+        "SELECT winning_number FROM $table_winning_numbers WHERE draw_date = %s AND draw_session = %s",
+        $selected_date, $selected_session
+    ));
+
+    $actual_payout = 0;
+    if ($winning_number) {
+        $winning_number_total_amount = $wpdb->get_var($wpdb->prepare(
+            "SELECT SUM(amount) FROM $table_name WHERE lottery_number = %s AND draw_session = %s AND timestamp BETWEEN %s AND %s",
+            $winning_number, $selected_session, $start_datetime, $end_datetime
+        ));
+        if ($winning_number_total_amount) {
+            $actual_payout = $winning_number_total_amount * $payout_rate;
+        }
+    }
+    $net_profit_loss = $total_sales - $actual_payout;
+
     ?>
-    <style>.highlight-risk { color: red; font-weight: bold; }</style>
+    <style>
+        .highlight-risk { color: red; font-weight: bold; }
+        .profit { color: green; }
+        .loss { color: red; }
+    </style>
     <div class="wrap">
         <h1><?php echo esc_html__('Financial Report', 'custom-lottery'); ?></h1>
         <form method="get">
@@ -693,9 +716,27 @@ function custom_lottery_reports_page_callback() {
         </form>
 
         <h2><?php printf(esc_html__('Report for %s session on %s', 'custom-lottery'), esc_html($selected_session), esc_html($selected_date)); ?></h2>
-        <h3><?php printf(esc_html__('Total Sales: %s Kyat', 'custom-lottery'), number_format($total_sales, 2)); ?></h3>
 
-        <table class="wp-list-table widefat fixed striped">
+        <div style="background: #fff; padding: 15px; margin-top: 15px; border: 1px solid #c3c4c7;">
+            <h3><?php printf(esc_html__('Total Sales: %s Kyat', 'custom-lottery'), '<strong>' . number_format($total_sales, 2) . '</strong>'); ?></h3>
+            <?php if ($winning_number): ?>
+                <p><?php printf(esc_html__('Winning Number for this session: %s', 'custom-lottery'), '<strong>' . esc_html($winning_number) . '</strong>'); ?></p>
+                <h3><?php printf(esc_html__('Actual Payout: %s Kyat', 'custom-lottery'), '<strong>' . number_format($actual_payout, 2) . '</strong>'); ?></h3>
+                <h3 class="<?php echo $net_profit_loss >= 0 ? 'profit' : 'loss'; ?>">
+                    <?php
+                    if ($net_profit_loss >= 0) {
+                        printf(esc_html__('Net Profit: %s Kyat', 'custom-lottery'), '<strong>' . number_format($net_profit_loss, 2) . '</strong>');
+                    } else {
+                        printf(esc_html__('Net Loss: %s Kyat', 'custom-lottery'), '<strong>' . number_format(abs($net_profit_loss), 2) . '</strong>');
+                    }
+                    ?>
+                </h3>
+            <?php else: ?>
+                <p><em><?php echo esc_html__('Winning number not yet drawn. Profit/Loss will be calculated once the result is available.', 'custom-lottery'); ?></em></p>
+            <?php endif; ?>
+        </div>
+
+        <table class="wp-list-table widefat fixed striped" style="margin-top: 20px;">
             <thead>
                 <tr>
                     <th><?php echo esc_html__('Lottery Number', 'custom-lottery'); ?></th>
