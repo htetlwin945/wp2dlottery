@@ -195,6 +195,8 @@ function custom_lottery_admin_menu() {
         add_action("load-{$dashboard_hook}", 'custom_lottery_add_dashboard_widgets');
     }
 }
+add_action('admin_menu', 'custom_lottery_admin_menu');
+
 /**
  * Callback for the Agent Dashboard page.
  */
