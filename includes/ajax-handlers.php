@@ -87,10 +87,19 @@ function custom_lottery_search_customers_callback() {
         wp_send_json([]);
     }
 
-    $results = $wpdb->get_results($wpdb->prepare(
-        "SELECT customer_name, phone FROM $table_customers WHERE phone LIKE %s LIMIT 10",
-        '%' . $wpdb->esc_like($term) . '%'
-    ));
+    $agent_id = custom_lottery_get_current_agent_id();
+
+    $query = "SELECT customer_name, phone FROM $table_customers WHERE phone LIKE %s";
+    $params = ['%' . $wpdb->esc_like($term) . '%'];
+
+    if ($agent_id) {
+        $query .= " AND agent_id = %d";
+        $params[] = $agent_id;
+    }
+
+    $query .= " LIMIT 10";
+
+    $results = $wpdb->get_results($wpdb->prepare($query, $params));
 
     $suggestions = [];
     foreach ($results as $result) {
@@ -121,12 +130,8 @@ function custom_lottery_submit_entries_callback() {
     $current_datetime = new DateTime('now', $timezone);
     $current_date = $current_datetime->format('Y-m-d');
 
-    // Get agent_id if the current user is a commission agent
-    $agent_id = null;
-    $current_user = wp_get_current_user();
-    if (in_array('commission_agent', (array) $current_user->roles)) {
-        $agent_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_agents WHERE user_id = %d", $current_user->ID));
-    }
+    // Get agent_id using the new helper function
+    $agent_id = custom_lottery_get_current_agent_id();
 
     // Get customer and session data
     $customer_name = sanitize_text_field($_POST['customer_name']);

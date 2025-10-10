@@ -106,15 +106,10 @@ class Lotto_Customers_List_Table extends WP_List_Table {
         $where_clauses = [];
         $query_params = [];
 
-        $current_user = wp_get_current_user();
-        if (in_array('commission_agent', (array) $current_user->roles)) {
-            $agent_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_agents WHERE user_id = %d", $current_user->ID));
-            if ($agent_id) {
-                $where_clauses[] = "agent_id = %d";
-                $query_params[] = $agent_id;
-            } else {
-                $where_clauses[] = "1=0";
-            }
+        $agent_id = custom_lottery_get_current_agent_id();
+        if ($agent_id) {
+            $where_clauses[] = "agent_id = %d";
+            $query_params[] = $agent_id;
         } elseif (current_user_can('manage_options') && $filter_agent_id > 0) {
             $where_clauses[] = "agent_id = %d";
             $query_params[] = $filter_agent_id;

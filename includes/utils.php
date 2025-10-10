@@ -6,6 +6,22 @@ if ( ! defined( 'WPINC' ) ) {
 }
 
 /**
+ * Gets the agent ID for the current user if they are a commission agent.
+ *
+ * @return int|null The agent ID if the user is a commission agent, null otherwise.
+ */
+function custom_lottery_get_current_agent_id() {
+    $current_user = wp_get_current_user();
+    if (in_array('commission_agent', (array) $current_user->roles)) {
+        global $wpdb;
+        $table_agents = $wpdb->prefix . 'lotto_agents';
+        $agent_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_agents WHERE user_id = %d", $current_user->ID));
+        return $agent_id ? absint($agent_id) : null;
+    }
+    return null;
+}
+
+/**
  * Logs a specific admin action to the audit log table.
  */
 function custom_lottery_log_action($action, $details) {
