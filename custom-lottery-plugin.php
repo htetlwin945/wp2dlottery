@@ -28,6 +28,7 @@ require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/class-lotto-customers-list-
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/class-lotto-mod-requests-list-table.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/db-setup.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/db-schema-mods.php' );
+require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/db-schema-commission.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/admin-pages.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/ajax-handlers.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/cron-jobs.php' );
@@ -44,6 +45,7 @@ require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/settings-page.php' );
 function custom_lottery_plugin_activation() {
     activate_custom_lottery_plugin();
     custom_lottery_apply_schema_mods();
+    custom_lottery_apply_commission_schema(); // Add this line
     custom_lottery_add_roles();
 }
 
@@ -184,8 +186,14 @@ add_action('wp_enqueue_scripts', 'custom_lottery_frontend_scripts');
  * Check the plugin version and run the activation function if the version has changed.
  */
 function custom_lottery_check_version() {
-    if ( get_site_option( 'custom_lottery_version' ) != CUSTOM_LOTTERY_VERSION ) {
+    $current_version = get_site_option( 'custom_lottery_version' );
+    if ( $current_version != CUSTOM_LOTTERY_VERSION ) {
+        // Run the core activation and all schema updates
         activate_custom_lottery_plugin();
+        custom_lottery_apply_schema_mods();
+        custom_lottery_apply_commission_schema();
+
+        // Update the version in the database
         update_site_option( 'custom_lottery_version', CUSTOM_LOTTERY_VERSION );
     }
 }

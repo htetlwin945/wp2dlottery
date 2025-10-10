@@ -121,11 +121,17 @@ function custom_lottery_submit_entries_callback() {
     $current_datetime = new DateTime('now', $timezone);
     $current_date = $current_datetime->format('Y-m-d');
 
-    // Get agent_id if the current user is a commission agent
+    // Get agent data if the current user is a commission agent
+    $agent = null;
     $agent_id = null;
+    $commission_rate = 0;
     $current_user = wp_get_current_user();
     if (in_array('commission_agent', (array) $current_user->roles)) {
-        $agent_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_agents WHERE user_id = %d", $current_user->ID));
+        $agent = $wpdb->get_row($wpdb->prepare("SELECT id, commission_rate FROM $table_agents WHERE user_id = %d", $current_user->ID));
+        if ($agent) {
+            $agent_id = $agent->id;
+            $commission_rate = $agent->commission_rate / 100;
+        }
     }
 
     // Get customer and session data
@@ -177,9 +183,22 @@ function custom_lottery_submit_entries_callback() {
         if ($agent_id) {
             $entry_data['agent_id'] = $agent_id;
         }
-        $wpdb->insert($table_entries, $entry_data);
-        check_and_auto_block_number($lottery_number, $draw_session, $current_date, $agent_id, $amount);
-        $success_count++;
+        if ($wpdb->insert($table_entries, $entry_data)) {
+            $new_entry_id = $wpdb->insert_id;
+            // Record commission if applicable
+            if ($agent_id && $commission_rate > 0) {
+                $commission_amount = $amount * $commission_rate;
+                $wpdb->insert($wpdb->prefix . 'lotto_commission_ledger', [
+                    'agent_id' => $agent_id,
+                    'entry_id' => $new_entry_id,
+                    'commission_amount' => $commission_amount,
+                    'status' => 'unsettled',
+                    'created_at' => current_time('mysql'),
+                ]);
+            }
+            check_and_auto_block_number($lottery_number, $draw_session, $current_date, $agent_id, $amount);
+            $success_count++;
+        }
         $total_amount += $amount;
         $processed_entries_for_receipt[] = ['lottery_number' => $lottery_number, 'amount' => $amount, 'is_reverse' => false];
 
@@ -203,9 +222,22 @@ function custom_lottery_submit_entries_callback() {
                 if ($agent_id) {
                     $rev_entry_data['agent_id'] = $agent_id;
                 }
-                $wpdb->insert($table_entries, $rev_entry_data);
-                check_and_auto_block_number($reversed_number, $draw_session, $current_date, $agent_id, $amount);
-                $success_count++;
+                if ($wpdb->insert($table_entries, $rev_entry_data)) {
+                    $new_entry_id = $wpdb->insert_id;
+                    // Record commission if applicable
+                    if ($agent_id && $commission_rate > 0) {
+                        $commission_amount = $amount * $commission_rate;
+                        $wpdb->insert($wpdb->prefix . 'lotto_commission_ledger', [
+                            'agent_id' => $agent_id,
+                            'entry_id' => $new_entry_id,
+                            'commission_amount' => $commission_amount,
+                            'status' => 'unsettled',
+                            'created_at' => current_time('mysql'),
+                        ]);
+                    }
+                    check_and_auto_block_number($reversed_number, $draw_session, $current_date, $agent_id, $amount);
+                    $success_count++;
+                }
                 $total_amount += $amount;
                 $processed_entries_for_receipt[] = ['lottery_number' => $reversed_number, 'amount' => $amount, 'is_reverse' => true];
             }
@@ -564,3 +596,74 @@ function custom_lottery_reject_modification_request_callback() {
     wp_send_json_success(['message' => 'Request rejected.', 'new_status' => 'Rejected']);
 }
 add_action('wp_ajax_reject_modification_request', 'custom_lottery_reject_modification_request_callback');
+
+/**
+ * AJAX handler for an agent to view the details of a settlement.
+ */
+function custom_lottery_get_settlement_details_callback() {
+    check_ajax_referer('agent_settlement_history_nonce', 'nonce');
+
+    $settlement_id = isset($_POST['settlement_id']) ? absint($_POST['settlement_id']) : 0;
+    if (empty($settlement_id)) {
+        wp_send_json_error('Invalid settlement ID.');
+        return;
+    }
+
+    global $wpdb;
+    $table_agents = $wpdb->prefix . 'lotto_agents';
+    $table_ledger = $wpdb->prefix . 'lotto_commission_ledger';
+    $table_settlements = $wpdb->prefix . 'lotto_commission_settlements';
+    $current_user_id = get_current_user_id();
+
+    $agent_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_agents WHERE user_id = %d", $current_user_id));
+
+    // Security check: Ensure the settlement belongs to the current agent
+    $settlement_agent_id = $wpdb->get_var($wpdb->prepare("SELECT agent_id FROM $table_settlements WHERE id = %d", $settlement_id));
+    if (!$agent_id || $agent_id != $settlement_agent_id) {
+        wp_send_json_error('Permission denied.');
+        return;
+    }
+
+    $ledger_entries = $wpdb->get_results($wpdb->prepare(
+        "SELECT l.entry_id, l.commission_amount, e.timestamp, e.lottery_number, e.amount as entry_amount
+         FROM $table_ledger l
+         JOIN {$wpdb->prefix}lotto_entries e ON l.entry_id = e.id
+         WHERE l.settlement_id = %d
+         ORDER BY e.timestamp DESC",
+        $settlement_id
+    ));
+
+    if (empty($ledger_entries)) {
+        wp_send_json_error('No details found for this settlement.');
+        return;
+    }
+
+    // Build HTML for the details table
+    ob_start();
+    ?>
+    <table class="wp-list-table widefat fixed striped" style="margin: 0;">
+        <thead>
+            <tr>
+                <th><?php esc_html_e('Entry Date', 'custom-lottery'); ?></th>
+                <th><?php esc_html_e('Lottery Number', 'custom-lottery'); ?></th>
+                <th><?php esc_html_e('Entry Amount (Kyat)', 'custom-lottery'); ?></th>
+                <th><?php esc_html_e('Commission Earned (Kyat)', 'custom-lottery'); ?></th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ($ledger_entries as $entry) : ?>
+                <tr>
+                    <td><?php echo esc_html(date('Y-m-d H:i', strtotime($entry->timestamp))); ?></td>
+                    <td><?php echo esc_html($entry->lottery_number); ?></td>
+                    <td><?php echo number_format($entry->entry_amount, 2); ?></td>
+                    <td><?php echo number_format($entry->commission_amount, 2); ?></td>
+                </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+    <?php
+    $html = ob_get_clean();
+
+    wp_send_json_success(['html' => $html]);
+}
+add_action('wp_ajax_get_settlement_details', 'custom_lottery_get_settlement_details_callback');

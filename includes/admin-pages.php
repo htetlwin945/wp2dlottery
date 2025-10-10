@@ -6,6 +6,158 @@ if ( ! defined( 'WPINC' ) ) {
 }
 
 /**
+ * Callback for the Commission Settlements page.
+ */
+function custom_lottery_commission_settlements_page_callback() {
+    global $wpdb;
+    $table_agents = $wpdb->prefix . 'lotto_agents';
+    $table_ledger = $wpdb->prefix . 'lotto_commission_ledger';
+    $table_settlements = $wpdb->prefix . 'lotto_commission_settlements';
+
+    // Handle the settlement form submission
+    if (isset($_POST['settle_commission_submit']) && check_admin_referer('settle_commission_action', 'settle_commission_nonce')) {
+        $agent_id = absint($_POST['agent_id']);
+        $start_date = sanitize_text_field($_POST['start_date']);
+        $end_date = sanitize_text_field($_POST['end_date']);
+        $notes = sanitize_textarea_field($_POST['settlement_notes']);
+        $ledger_ids_to_settle = array_map('absint', $_POST['ledger_ids']);
+
+        if ($agent_id && !empty($ledger_ids_to_settle)) {
+            $total_amount = $wpdb->get_var($wpdb->prepare(
+                "SELECT SUM(commission_amount) FROM $table_ledger WHERE id IN (" . implode(',', $ledger_ids_to_settle) . ") AND agent_id = %d AND status = 'unsettled'",
+                $agent_id
+            ));
+
+            if ($total_amount > 0) {
+                // 1. Create a settlement record
+                $wpdb->insert($table_settlements, [
+                    'agent_id' => $agent_id,
+                    'total_amount' => $total_amount,
+                    'settlement_date' => current_time('mysql'),
+                    'settled_by_user_id' => get_current_user_id(),
+                    'notes' => $notes,
+                ]);
+                $settlement_id = $wpdb->insert_id;
+
+                // 2. Update the ledger records
+                $wpdb->query($wpdb->prepare(
+                    "UPDATE $table_ledger SET status = 'settled', settlement_id = %d WHERE id IN (" . implode(',', $ledger_ids_to_settle) . ")",
+                    $settlement_id
+                ));
+
+                echo '<div class="updated"><p>' . sprintf(esc_html__('Settlement of %s Kyat for agent completed successfully.', 'custom-lottery'), number_format($total_amount, 2)) . '</p></div>';
+            } else {
+                echo '<div class="error"><p>' . esc_html__('No unsettled commissions found to process.', 'custom-lottery') . '</p></div>';
+            }
+        } else {
+            echo '<div class="error"><p>' . esc_html__('Invalid agent or no commissions selected.', 'custom-lottery') . '</p></div>';
+        }
+    }
+
+    // Get all commission agents for the dropdown
+    $commission_agents = $wpdb->get_results(
+        "SELECT a.id, u.display_name FROM $table_agents a JOIN {$wpdb->users} u ON a.user_id = u.ID WHERE a.agent_type = 'commission' ORDER BY u.display_name ASC"
+    );
+
+    $selected_agent_id = isset($_GET['agent_id']) ? absint($_GET['agent_id']) : 0;
+    $start_date = isset($_GET['start_date']) ? sanitize_text_field($_GET['start_date']) : date('Y-m-01');
+    $end_date = isset($_GET['end_date']) ? sanitize_text_field($_GET['end_date']) : date('Y-m-t');
+
+    $unsettled_commissions = [];
+    if ($selected_agent_id) {
+        $unsettled_commissions = $wpdb->get_results($wpdb->prepare(
+            "SELECT id, entry_id, commission_amount, created_at FROM $table_ledger
+             WHERE agent_id = %d AND status = 'unsettled' AND created_at BETWEEN %s AND %s
+             ORDER BY created_at ASC",
+            $selected_agent_id,
+            $start_date . ' 00:00:00',
+            $end_date . ' 23:59:59'
+        ));
+    }
+    ?>
+    <div class="wrap">
+        <h1><?php echo esc_html__('Commission Settlements', 'custom-lottery'); ?></h1>
+
+        <div class="card">
+            <h2><?php echo esc_html__('Find Unsettled Commissions', 'custom-lottery'); ?></h2>
+            <form method="get">
+                <input type="hidden" name="page" value="custom-lottery-commission-settlements">
+                <p>
+                    <label for="agent_id"><?php echo esc_html__('Select Agent:', 'custom-lottery'); ?></label>
+                    <select name="agent_id" id="agent_id">
+                        <option value=""><?php echo esc_html__('-- Select an Agent --', 'custom-lottery'); ?></option>
+                        <?php foreach ($commission_agents as $agent) : ?>
+                            <option value="<?php echo esc_attr($agent->id); ?>" <?php selected($selected_agent_id, $agent->id); ?>>
+                                <?php echo esc_html($agent->display_name); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </p>
+                <p>
+                    <label for="start_date"><?php echo esc_html__('Start Date:', 'custom-lottery'); ?></label>
+                    <input type="date" name="start_date" id="start_date" value="<?php echo esc_attr($start_date); ?>">
+                    <label for="end_date"><?php echo esc_html__('End Date:', 'custom-lottery'); ?></label>
+                    <input type="date" name="end_date" id="end_date" value="<?php echo esc_attr($end_date); ?>">
+                </p>
+                <p>
+                    <button type="submit" class="button button-primary"><?php echo esc_html__('View Unsettled Commissions', 'custom-lottery'); ?></button>
+                </p>
+            </form>
+        </div>
+
+        <?php if ($selected_agent_id && !empty($unsettled_commissions)) : ?>
+            <form method="post">
+                <?php wp_nonce_field('settle_commission_action', 'settle_commission_nonce'); ?>
+                <input type="hidden" name="agent_id" value="<?php echo esc_attr($selected_agent_id); ?>">
+                <input type="hidden" name="start_date" value="<?php echo esc_attr($start_date); ?>">
+                <input type="hidden" name="end_date" value="<?php echo esc_attr($end_date); ?>">
+
+                <h2 style="margin-top: 20px;"><?php echo esc_html__('Unsettled Commissions', 'custom-lottery'); ?></h2>
+                <table class="wp-list-table widefat fixed striped">
+                    <thead>
+                        <tr>
+                            <th><?php echo esc_html__('Date', 'custom-lottery'); ?></th>
+                            <th><?php echo esc_html__('Lottery Entry ID', 'custom-lottery'); ?></th>
+                            <th><?php echo esc_html__('Commission Amount (Kyat)', 'custom-lottery'); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php
+                        $total_unsettled = 0;
+                        foreach ($unsettled_commissions as $commission) :
+                            $total_unsettled += $commission->commission_amount;
+                            echo '<input type="hidden" name="ledger_ids[]" value="' . esc_attr($commission->id) . '">';
+                        ?>
+                            <tr>
+                                <td><?php echo esc_html(date('Y-m-d H:i', strtotime($commission->created_at))); ?></td>
+                                <td><a href="<?php echo esc_url(admin_url('admin.php?page=custom-lottery-all-entries&action=edit&entry_id=' . $commission->entry_id)); ?>" target="_blank"><?php echo esc_html($commission->entry_id); ?></a></td>
+                                <td><?php echo number_format($commission->commission_amount, 2); ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <th colspan="2" style="text-align: right;"><?php echo esc_html__('Total to Settle:', 'custom-lottery'); ?></th>
+                            <th><?php echo number_format($total_unsettled, 2); ?> Kyat</th>
+                        </tr>
+                    </tfoot>
+                </table>
+                <div style="margin-top: 20px;">
+                    <label for="settlement_notes"><?php echo esc_html__('Settlement Notes (Optional):', 'custom-lottery'); ?></label>
+                    <textarea name="settlement_notes" id="settlement_notes" rows="3" style="width: 100%;"></textarea>
+                </div>
+                <p>
+                    <button type="submit" name="settle_commission_submit" class="button button-primary button-large"><?php echo esc_html__('Confirm and Settle Payment', 'custom-lottery'); ?></button>
+                </p>
+            </form>
+        <?php elseif ($selected_agent_id) : ?>
+             <div class="updated" style="margin-top:20px;"><p><?php echo esc_html__('No unsettled commissions found for the selected agent and date range.', 'custom-lottery'); ?></p></div>
+        <?php endif; ?>
+    </div>
+    <?php
+}
+
+/**
  * Callback for the Modification Requests page.
  */
 function custom_lottery_mod_requests_page_callback() {
@@ -70,6 +222,15 @@ function custom_lottery_admin_menu() {
             'enter_lottery_numbers',
             'custom-lottery-agent-customers',
             'custom_lottery_customers_page_callback'
+        );
+
+        add_submenu_page(
+            'custom-lottery-agent-dashboard',
+            __('Settlement History', 'custom-lottery'),
+            __('Settlement History', 'custom-lottery'),
+            'enter_lottery_numbers',
+            'custom-lottery-agent-settlement-history',
+            'custom_lottery_agent_settlement_history_page_callback'
         );
 
     } else {
@@ -184,6 +345,15 @@ function custom_lottery_admin_menu() {
             'custom_lottery_agents_page_callback'
         );
 
+        add_submenu_page(
+            'custom-lottery-dashboard',
+            __('Commission Settlements', 'custom-lottery'),
+            __('Commission Settlements', 'custom-lottery'),
+            'manage_options',
+            'custom-lottery-commission-settlements',
+            'custom_lottery_commission_settlements_page_callback'
+        );
+
         add_action("load-{$dashboard_hook}", 'custom_lottery_add_dashboard_widgets');
     }
 }
@@ -196,9 +366,10 @@ function custom_lottery_agent_dashboard_page_callback() {
     global $wpdb;
     $table_agents = $wpdb->prefix . 'lotto_agents';
     $table_entries = $wpdb->prefix . 'lotto_entries';
+    $table_ledger = $wpdb->prefix . 'lotto_commission_ledger';
     $current_user_id = get_current_user_id();
 
-    $agent = $wpdb->get_row($wpdb->prepare("SELECT id, commission_rate FROM $table_agents WHERE user_id = %d", $current_user_id));
+    $agent = $wpdb->get_row($wpdb->prepare("SELECT id FROM $table_agents WHERE user_id = %d", $current_user_id));
 
     if (!$agent) {
         echo '<div class="wrap"><h1>' . esc_html__('Error', 'custom-lottery') . '</h1><p>' . esc_html__('Could not retrieve your agent information.', 'custom-lottery') . '</p></div>';
@@ -206,8 +377,6 @@ function custom_lottery_agent_dashboard_page_callback() {
     }
 
     $agent_id = $agent->id;
-    $commission_rate = $agent->commission_rate / 100;
-
     $timezone = new DateTimeZone('Asia/Yangon');
 
     // Today's stats
@@ -217,16 +386,16 @@ function custom_lottery_agent_dashboard_page_callback() {
         "SELECT SUM(amount) FROM $table_entries WHERE agent_id = %d AND timestamp >= %s AND timestamp < %s",
         $agent_id, $today_start, $today_end
     ));
-    $todays_commission = $todays_sales * $commission_rate;
-
-    // This month's stats
-    $month_start = (new DateTime('first day of this month', $timezone))->format('Y-m-d H:i:s');
-    $month_end = (new DateTime('first day of next month', $timezone))->format('Y-m-d H:i:s');
-    $monthly_sales = $wpdb->get_var($wpdb->prepare(
-        "SELECT SUM(amount) FROM $table_entries WHERE agent_id = %d AND timestamp >= %s AND timestamp < %s",
-        $agent_id, $month_start, $month_end
+    $todays_commission = $wpdb->get_var($wpdb->prepare(
+        "SELECT SUM(commission_amount) FROM $table_ledger WHERE agent_id = %d AND created_at >= %s AND created_at < %s",
+        $agent_id, $today_start, $today_end
     ));
-    $monthly_commission = $monthly_sales * $commission_rate;
+
+    // Current unsettled commission
+    $total_unsettled_commission = $wpdb->get_var($wpdb->prepare(
+        "SELECT SUM(commission_amount) FROM $table_ledger WHERE agent_id = %d AND status = 'unsettled'",
+        $agent_id
+    ));
 
     // Recent entries
     $recent_entries = $wpdb->get_results($wpdb->prepare(
@@ -254,12 +423,8 @@ function custom_lottery_agent_dashboard_page_callback() {
                                         <p style="font-size: 24px; margin: 0; color: green;"><?php echo number_format($todays_commission ?? 0, 2); ?> Kyat</p>
                                     </div>
                                     <div>
-                                        <h3><?php esc_html_e('This Month\'s Sales', 'custom-lottery'); ?></h3>
-                                        <p style="font-size: 24px; margin: 0;"><?php echo number_format($monthly_sales ?? 0, 2); ?> Kyat</p>
-                                    </div>
-                                     <div>
-                                        <h3><?php esc_html_e('This Month\'s Commission', 'custom-lottery'); ?></h3>
-                                        <p style="font-size: 24px; margin: 0; color: green;"><?php echo number_format($monthly_commission ?? 0, 2); ?> Kyat</p>
+                                        <h3><?php esc_html_e('Current Unsettled Commission', 'custom-lottery'); ?></h3>
+                                        <p style="font-size: 24px; margin: 0; color: orange;"><?php echo number_format($total_unsettled_commission ?? 0, 2); ?> Kyat</p>
                                     </div>
                                 </div>
                             </div>
@@ -299,6 +464,108 @@ function custom_lottery_agent_dashboard_page_callback() {
     </div>
     <?php
 }
+
+/**
+ * Callback for the Agent Settlement History page.
+ */
+function custom_lottery_agent_settlement_history_page_callback() {
+    global $wpdb;
+    $table_agents = $wpdb->prefix . 'lotto_agents';
+    $table_settlements = $wpdb->prefix . 'lotto_commission_settlements';
+    $table_ledger = $wpdb->prefix . 'lotto_commission_ledger';
+    $current_user_id = get_current_user_id();
+
+    $agent_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_agents WHERE user_id = %d", $current_user_id));
+
+    if (!$agent_id) {
+        echo '<div class="wrap"><h1>' . esc_html__('Error', 'custom-lottery') . '</h1><p>' . esc_html__('Could not retrieve your agent information.', 'custom-lottery') . '</p></div>';
+        return;
+    }
+
+    $settlements = $wpdb->get_results($wpdb->prepare(
+        "SELECT * FROM $table_settlements WHERE agent_id = %d ORDER BY settlement_date DESC",
+        $agent_id
+    ));
+    ?>
+    <div class="wrap">
+        <h1><?php echo esc_html__('Commission Settlement History', 'custom-lottery'); ?></h1>
+        <table class="wp-list-table widefat fixed striped">
+            <thead>
+                <tr>
+                    <th><?php echo esc_html__('Settlement Date', 'custom-lottery'); ?></th>
+                    <th><?php echo esc_html__('Total Amount (Kyat)', 'custom-lottery'); ?></th>
+                    <th><?php echo esc_html__('Notes', 'custom-lottery'); ?></th>
+                    <th><?php echo esc_html__('Details', 'custom-lottery'); ?></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if ($settlements) : foreach ($settlements as $settlement) : ?>
+                    <tr>
+                        <td><?php echo esc_html(date('Y-m-d H:i', strtotime($settlement->settlement_date))); ?></td>
+                        <td><?php echo number_format($settlement->total_amount, 2); ?></td>
+                        <td><?php echo esc_html($settlement->notes); ?></td>
+                        <td>
+                            <a href="#" class="view-settlement-details" data-settlement-id="<?php echo esc_attr($settlement->id); ?>"><?php echo esc_html__('View Details', 'custom-lottery'); ?></a>
+                        </td>
+                    </tr>
+                    <tr class="settlement-details-row" id="settlement-details-<?php echo esc_attr($settlement->id); ?>" style="display: none;">
+                        <td colspan="4">
+                            <div class="settlement-details-content" style="padding: 15px;">
+                                <!-- Details will be loaded here via AJAX -->
+                                <span class="spinner is-active"></span>
+                            </div>
+                        </td>
+                    </tr>
+                <?php endforeach; else : ?>
+                    <tr><td colspan="4"><?php echo esc_html__('No settlement history found.', 'custom-lottery'); ?></td></tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+    <?php
+    // Enqueue the script and localize data
+    wp_enqueue_script('jquery');
+    wp_add_inline_script('jquery', '
+        jQuery(document).ready(function($) {
+            $(".view-settlement-details").on("click", function(e) {
+                e.preventDefault();
+                var button = $(this);
+                var settlementId = button.data("settlement-id");
+                var detailsRow = $("#settlement-details-" + settlementId);
+                var detailsContent = detailsRow.find(".settlement-details-content");
+
+                // Toggle the details row
+                detailsRow.toggle();
+
+                // If the row is now visible and hasn\'t been loaded yet, fetch the data
+                if (detailsRow.is(":visible") && detailsContent.find("table").length === 0) {
+                    $.ajax({
+                        url: "'.admin_url('admin-ajax.php').'",
+                        type: "POST",
+                        data: {
+                            action: "get_settlement_details",
+                            nonce: "'.wp_create_nonce('agent_settlement_history_nonce').'",
+                            settlement_id: settlementId
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                detailsContent.html(response.data.html);
+                            } else {
+                                detailsContent.html("<p style=\'color:red;\'>" + response.data + "</p>");
+                            }
+                        },
+                        error: function() {
+                            detailsContent.html("<p style=\'color:red;\'>An error occurred.</p>");
+                        }
+                    });
+                }
+            });
+        });
+    ');
+    ?>
+    <?php
+}
+
 
 /**
  * Callback for the Agents page.
