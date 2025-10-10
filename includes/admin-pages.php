@@ -995,7 +995,7 @@ function custom_lottery_all_entries_page_callback() {
 
                     <p>
                         <label for="mod-request-number"><?php esc_html_e('New Number:', 'custom-lottery'); ?></label><br>
-                        <input type="text" id="mod-request-number" name="new_number" class="small-text" maxlength="2" pattern="\\d{2}" required>
+                        <input type="text" id="mod-request-number" name="new_number" class="small-text" maxlength="2" pattern="\d{2}" required>
                     </p>
                     <p>
                         <label for="mod-request-amount"><?php esc_html_e('New Amount:', 'custom-lottery'); ?></label><br>
