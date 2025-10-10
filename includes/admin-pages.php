@@ -76,7 +76,7 @@ function custom_lottery_admin_menu() {
         // Original Menu for Admins, Managers, and other roles
         $dashboard_hook = add_menu_page(
             __('Dashboard', 'custom-lottery'), // Page Title
-            __('Lottery', 'custom-lottery'),   // Menu Title
+            __('Dashboard', 'custom-lottery'),   // Menu Title
             'manage_options',
             'custom-lottery-dashboard',
             'custom_lottery_dashboard_page_callback',
