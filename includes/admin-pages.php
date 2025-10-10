@@ -13,9 +13,16 @@ function custom_lottery_mod_requests_page_callback() {
     $mod_requests_list_table->prepare_items();
     ?>
     <style type="text/css">
-        /* Make row actions always visible on the modification requests table */
-        .wp-list-table .row-actions {
-            visibility: visible;
+        /* Use flexbox for the main container to position details and actions */
+        .entry-details-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        /* The action buttons are now in their own div, which we can align */
+        .details-actions {
+            flex-shrink: 0; /* Prevents the actions div from shrinking */
+            padding-left: 10px; /* Adds some space between text and buttons */
         }
     </style>
     <div class="wrap">

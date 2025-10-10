@@ -37,12 +37,16 @@ class Lotto_Mod_Requests_List_Table extends WP_List_Table {
     }
 
     function column_entry_details($item) {
-        $output = sprintf(
+        // Main container for flexbox layout
+        $output = '<div class="entry-details-container">';
+
+        // Div for the textual details
+        $output .= '<div class="details-text">';
+        $output .= sprintf(
             '<strong>Customer:</strong> %s (%s)<br>',
             esc_html($item['customer_name']),
             esc_html($item['phone'])
         );
-
         $output .= '<ul>';
         $output .= sprintf(
             '<li><strong>Original:</strong> %s - %s Kyat</li>',
@@ -55,28 +59,30 @@ class Lotto_Mod_Requests_List_Table extends WP_List_Table {
             number_format($item['new_amount'], 2)
         );
         $output .= '</ul>';
+        $output .= '</div>'; // End .details-text
 
-
+        // Div for the action buttons
         if ($item['status'] === 'pending') {
             $approve_nonce = wp_create_nonce('mod_request_approve_' . $item['id']);
             $reject_nonce = wp_create_nonce('mod_request_reject_' . $item['id']);
 
-            $approve_link = sprintf(
-                '<a href="#" class="approve-mod-request" data-request-id="%d" data-nonce="%s" style="color: #2271b1;">%s</a>',
+            $output .= '<div class="details-actions">';
+            $output .= sprintf(
+                '<a href="#" class="button button-primary approve-mod-request" data-request-id="%d" data-nonce="%s">%s</a>',
                 $item['id'],
                 $approve_nonce,
                 __('Approve', 'custom-lottery')
             );
-
-            $reject_link = sprintf(
-                '<a href="#" class="reject-mod-request" data-request-id="%d" data-nonce="%s" style="color: #d63638;">%s</a>',
+            $output .= sprintf(
+                '<a href="#" class="button button-secondary reject-mod-request" data-request-id="%d" data-nonce="%s" style="margin-left: 5px;">%s</a>',
                 $item['id'],
                 $reject_nonce,
                 __('Reject', 'custom-lottery')
             );
-
-            $output .= '<div class="row-actions"><span class="approve">' . $approve_link . ' | </span><span class="reject">' . $reject_link . '</span></div>';
+            $output .= '</div>'; // End .details-actions
         }
+
+        $output .= '</div>'; // End .entry-details-container
 
         return $output;
     }
