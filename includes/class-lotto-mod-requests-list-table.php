@@ -38,11 +38,24 @@ class Lotto_Mod_Requests_List_Table extends WP_List_Table {
 
     function column_entry_details($item) {
         $output = sprintf(
-            '<strong>Entry ID:</strong> %d<br><strong>Number:</strong> %s<br><strong>Amount:</strong> %s',
-            esc_html($item['entry_id']),
-            esc_html($item['lottery_number']),
-            number_format($item['amount'], 2)
+            '<strong>Customer:</strong> %s (%s)<br>',
+            esc_html($item['customer_name']),
+            esc_html($item['phone'])
         );
+
+        $output .= '<ul>';
+        $output .= sprintf(
+            '<li><strong>Original:</strong> %s - %s Kyat</li>',
+            esc_html($item['original_number']),
+            number_format($item['original_amount'], 2)
+        );
+        $output .= sprintf(
+            '<li style="color: #2271b1;"><strong>Proposed:</strong> %s - %s Kyat</li>',
+            esc_html($item['new_lottery_number']),
+            number_format($item['new_amount'], 2)
+        );
+        $output .= '</ul>';
+
 
         if ($item['status'] === 'pending') {
             $approve_nonce = wp_create_nonce('mod_request_approve_' . $item['id']);
@@ -94,7 +107,9 @@ class Lotto_Mod_Requests_List_Table extends WP_List_Table {
         $query = $wpdb->prepare(
             "SELECT
                 r.id, r.entry_id, r.request_notes, r.status, r.requested_at,
-                e.lottery_number, e.amount,
+                r.new_lottery_number, r.new_amount,
+                e.customer_name, e.phone,
+                e.lottery_number as original_number, e.amount as original_amount,
                 u.display_name as agent_name
              FROM $table_requests r
              JOIN $table_entries e ON r.entry_id = e.id

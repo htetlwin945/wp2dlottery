@@ -465,9 +465,11 @@ function custom_lottery_request_entry_modification_callback() {
 
     $entry_id = isset($_POST['entry_id']) ? absint($_POST['entry_id']) : 0;
     $request_notes = isset($_POST['request_notes']) ? sanitize_textarea_field($_POST['request_notes']) : '';
+    $new_number = isset($_POST['new_number']) ? sanitize_text_field($_POST['new_number']) : null;
+    $new_amount = isset($_POST['new_amount']) ? sanitize_text_field($_POST['new_amount']) : null;
 
-    if (empty($entry_id) || empty($request_notes)) {
-        wp_send_json_error('Invalid data provided.');
+    if (empty($entry_id) || empty($request_notes) || !preg_match('/^\d{2}$/', $new_number) || !is_numeric($new_amount)) {
+        wp_send_json_error('Invalid data provided. Please fill all fields correctly.');
         return;
     }
 
@@ -497,11 +499,13 @@ function custom_lottery_request_entry_modification_callback() {
 
     // Insert the modification request
     $inserted = $wpdb->insert($table_requests, [
-        'entry_id'      => $entry_id,
-        'agent_id'      => $agent_id,
-        'request_notes' => $request_notes,
-        'status'        => 'pending',
-        'requested_at'  => current_time('mysql'),
+        'entry_id'           => $entry_id,
+        'agent_id'           => $agent_id,
+        'request_notes'      => $request_notes,
+        'new_lottery_number' => $new_number,
+        'new_amount'         => $new_amount,
+        'status'             => 'pending',
+        'requested_at'       => current_time('mysql'),
     ]);
 
     if ($inserted) {
@@ -540,17 +544,29 @@ function custom_lottery_approve_modification_request_callback() {
         wp_send_json_error('Request not found.');
     }
 
-    // Update request status
-    $wpdb->update($table_requests,
+    // Update the original entry with the new data from the request
+    if (isset($request->new_lottery_number) && isset($request->new_amount)) {
+        $wpdb->update(
+            $table_entries,
+            [
+                'lottery_number' => $request->new_lottery_number,
+                'amount'         => $request->new_amount,
+            ],
+            ['id' => $request->entry_id]
+        );
+    }
+
+    // Update request status to 'approved'
+    $wpdb->update(
+        $table_requests,
         ['status' => 'approved', 'resolved_by' => get_current_user_id(), 'resolved_at' => current_time('mysql')],
         ['id' => $request_id]
     );
 
-    // Note: This action only approves the *request*. The admin must still manually edit the entry.
-    // We will clear the flag to remove it from the pending queue.
+    // Clear the modification request flag from the entry
     $wpdb->update($table_entries, ['has_mod_request' => 0], ['id' => $request->entry_id]);
 
-    wp_send_json_success(['message' => 'Request approved.', 'new_status' => 'Approved']);
+    wp_send_json_success(['message' => 'Request approved and entry updated.', 'new_status' => 'Approved']);
 }
 add_action('wp_ajax_approve_modification_request', 'custom_lottery_approve_modification_request_callback');
 

@@ -97,10 +97,12 @@ class Lotto_Entries_List_Table extends WP_List_Table {
                 // Agent actions
                 if (empty($entry['has_mod_request'])) {
                      $actions = [
-                        'request_mod' => sprintf(
-                            '<a href="#" class="request-modification-link" data-entry-id="%d">%s</a>',
+                        'edit' => sprintf(
+                            '<a href="#" class="edit-entry-link" data-entry-id="%d" data-current-number="%s" data-current-amount="%s">%s</a>',
                             $entry['id'],
-                            __('Request Modification', 'custom-lottery')
+                            esc_attr($entry['lottery_number']),
+                            esc_attr($entry['amount']),
+                            __('Edit', 'custom-lottery')
                         ),
                     ];
                 }

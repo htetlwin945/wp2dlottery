@@ -13,24 +13,25 @@ function custom_lottery_apply_schema_mods() {
     $charset_collate = $wpdb->get_charset_collate();
     require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
 
-    // Check if the modification requests table exists and create it if not.
+    // Define the schema for the modification requests table.
+    // dbDelta will create the table if it doesn't exist, or alter it if it does.
     $table_name = $wpdb->prefix . 'lotto_modification_requests';
-    if($wpdb->get_var("SHOW TABLES LIKE '$table_name'") != $table_name) {
-        $sql = "CREATE TABLE $table_name (
-            id mediumint(9) NOT NULL AUTO_INCREMENT,
-            entry_id mediumint(9) NOT NULL,
-            agent_id mediumint(9) NOT NULL,
-            request_notes text NOT NULL,
-            status varchar(20) DEFAULT 'pending' NOT NULL, -- pending, approved, rejected
-            requested_at datetime DEFAULT '0000-00-00 00:00:00' NOT NULL,
-            resolved_by mediumint(9) NULL,
-            resolved_at datetime NULL,
-            PRIMARY KEY  (id),
-            KEY entry_id (entry_id),
-            KEY agent_id (agent_id)
-        ) $charset_collate;";
-        dbDelta( $sql );
-    }
+    $sql_requests = "CREATE TABLE $table_name (
+        id mediumint(9) NOT NULL AUTO_INCREMENT,
+        entry_id mediumint(9) NOT NULL,
+        agent_id mediumint(9) NOT NULL,
+        request_notes text NOT NULL,
+        new_lottery_number VARCHAR(2) DEFAULT NULL,
+        new_amount DECIMAL(10,2) DEFAULT NULL,
+        status varchar(20) DEFAULT 'pending' NOT NULL, -- pending, approved, rejected
+        requested_at datetime DEFAULT '0000-00-00 00:00:00' NOT NULL,
+        resolved_by mediumint(9) NULL,
+        resolved_at datetime NULL,
+        PRIMARY KEY  (id),
+        KEY entry_id (entry_id),
+        KEY agent_id (agent_id)
+    ) $charset_collate;";
+    dbDelta( $sql_requests );
 
     // Add 'has_mod_request' column to lotto_entries table if it doesn't exist.
     $table_entries = $wpdb->prefix . 'lotto_entries';
