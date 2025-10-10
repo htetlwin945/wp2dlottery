@@ -1009,12 +1009,42 @@ function custom_lottery_all_entries_page_callback() {
  * Renders the reusable lottery entry form.
  */
 function custom_lottery_render_entry_form() {
+    global $wpdb;
+    $table_agents = $wpdb->prefix . 'lotto_agents';
+    $current_user = wp_get_current_user();
     $default_session = custom_lottery_get_current_session() ?? '12:01 PM';
     ?>
     <form id="lottery-entry-form" method="post">
         <?php wp_nonce_field( 'lottery_entry_action', 'lottery_entry_nonce' ); ?>
         <table class="form-table">
             <tbody>
+                <?php if (current_user_can('manage_options')) : ?>
+                    <tr>
+                        <th scope="row"><label for="agent-id"><?php esc_html_e('Select Agent', 'custom-lottery'); ?></label></th>
+                        <td>
+                            <?php
+                            $agents = $wpdb->get_results($wpdb->prepare("SELECT a.id, u.display_name FROM $table_agents a JOIN {$wpdb->users} u ON a.user_id = u.ID WHERE a.agent_type = %s", 'commission'));
+                            if ($agents) {
+                                echo '<select id="agent-id" name="agent_id" required>';
+                                echo '<option value="">' . esc_html__('Select an Agent', 'custom-lottery') . '</option>';
+                                foreach ($agents as $agent) {
+                                    echo '<option value="' . esc_attr($agent->id) . '">' . esc_html($agent->display_name) . '</option>';
+                                }
+                                echo '</select>';
+                            } else {
+                                echo '<p>' . esc_html__('No commission agents found.', 'custom-lottery') . '</p>';
+                            }
+                            ?>
+                        </td>
+                    </tr>
+                <?php elseif (in_array('commission_agent', (array) $current_user->roles)) : ?>
+                    <?php
+                    $agent_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_agents WHERE user_id = %d", $current_user->ID));
+                    if ($agent_id) {
+                        echo '<input type="hidden" name="agent_id" value="' . esc_attr($agent_id) . '">';
+                    }
+                    ?>
+                <?php endif; ?>
                 <tr>
                     <th scope="row"><label for="customer-name"><?php echo esc_html__( 'Customer Name', 'custom-lottery' ); ?></label></th>
                     <td><input type="text" id="customer-name" name="customer_name" class="regular-text" required></td>
