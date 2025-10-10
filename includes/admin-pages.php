@@ -10,7 +10,7 @@ if ( ! defined( 'WPINC' ) ) {
  */
 function custom_lottery_admin_menu() {
     $dashboard_hook = add_menu_page(
-        __( 'Lottery', 'custom-lottery' ),
+        __( 'Lottery Dashboard', 'custom-lottery' ),
         __( 'Lottery', 'custom-lottery' ),
         'manage_options',
         'custom-lottery-dashboard',
@@ -19,14 +19,11 @@ function custom_lottery_admin_menu() {
         20
     );
 
-    add_submenu_page(
-        'custom-lottery-dashboard',
-        __( 'Dashboard', 'custom-lottery' ),
-        __( 'Dashboard', 'custom-lottery' ),
-        'manage_options',
-        'custom-lottery-dashboard',
-        'custom_lottery_dashboard_page_callback'
-    );
+    // The add_menu_page function creates the top-level menu and the first submenu item.
+    // The submenu item was named "Lottery" and pointed to the dashboard.
+    // A second submenu item named "Dashboard" was also being created, leading to a duplicate.
+    // By removing the explicit add_submenu_page call for the dashboard, we are left with a single
+    // submenu item that points to the dashboard.
 
     add_submenu_page(
         'custom-lottery-dashboard',

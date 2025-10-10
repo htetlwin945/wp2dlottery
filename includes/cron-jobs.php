@@ -14,17 +14,12 @@ function custom_lottery_fetch_winning_numbers() {
     global $wpdb;
     $table_winning_numbers = $wpdb->prefix . 'lotto_winning_numbers';
 
-    // Use the historical API endpoint for greater reliability
-    $api_url_base = get_option('custom_lottery_api_url_historical', 'https://api.thaistock2d.com/2d-history');
-    $timezone = new DateTimeZone('Asia/Yangon');
-    $current_date = new DateTime('now', $timezone);
-    $current_date_str = $current_date->format('Y-m-d');
-    $api_url = add_query_arg(['date' => $current_date_str], $api_url_base);
+    // The historical API endpoint returns an array of the last ~20 days of results.
+    // It does not accept a date parameter.
+    $api_url = get_option('custom_lottery_api_url_historical', 'https://api.thaistock2d.com/2d_result');
 
-    // Fetch data from the API
     $response = wp_remote_get($api_url, ['timeout' => 15]);
 
-    // Handle API errors
     if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
         error_log('Lottery Plugin Historical API Error: ' . (is_wp_error($response) ? $response->get_error_message() : 'Invalid response code from ' . $api_url));
         return;
@@ -33,49 +28,48 @@ function custom_lottery_fetch_winning_numbers() {
     $body = wp_remote_retrieve_body($response);
     $data = json_decode($body, true);
 
-    // The historical endpoint returns a simple array, not nested under 'result'
-    if (empty($data) || !is_array($data)) {
+    // The endpoint should return a non-empty array.
+    if (empty($data) || !is_array($data) || !isset($data[0]['child'])) {
         error_log('Lottery Plugin Historical API Error: Invalid or empty data format received from ' . $api_url);
         return;
     }
 
-    foreach ($data as $result) {
-        // Ensure the required keys exist
-        if (!isset($result['open_time']) || !isset($result['twod'])) {
+    // The first element ($data[0]) is the most recent day's data.
+    $latest_results = $data[0];
+    $draw_date = $latest_results['date']; // e.g., "2024-07-19"
+    $daily_results = $latest_results['child'];
+
+    foreach ($daily_results as $result) {
+        if (!isset($result['time']) || !isset($result['twod'])) {
             continue;
         }
 
-        $session_time = $result['open_time'];
+        $session_time = $result['time']; // e.g., "12:01:00" or "16:30:00"
         $session_map = [
             '12:01:00' => '12:01 PM',
             '16:30:00' => '4:30 PM',
         ];
 
-        // Check if the result is for a session we care about
         if (isset($session_map[$session_time])) {
             $session_label = $session_map[$session_time];
             $winning_number = sanitize_text_field($result['twod']);
 
-            // Skip if the winning number is invalid (e.g., empty or placeholder)
             if (empty($winning_number) || !preg_match('/^\d{2}$/', $winning_number)) {
                 continue;
             }
 
-            // Attempt to insert the new winning number.
-            // The unique key on (draw_date, draw_session) will prevent duplicates.
             $inserted = $wpdb->insert(
                 $table_winning_numbers,
                 [
                     'winning_number' => $winning_number,
-                    'draw_date'      => $current_date_str,
+                    'draw_date'      => $draw_date,
                     'draw_session'   => $session_label,
                 ],
                 ['%s', '%s', '%s']
             );
 
-            // If the insert was successful (a new row was added), find and flag the winners.
             if ($inserted) {
-                custom_lottery_identify_winners($session_label, $winning_number, $current_date_str);
+                custom_lottery_identify_winners($session_label, $winning_number, $draw_date);
             }
         }
     }
