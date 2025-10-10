@@ -61,21 +61,21 @@ class Lotto_Mod_Requests_List_Table extends WP_List_Table {
             $approve_nonce = wp_create_nonce('mod_request_approve_' . $item['id']);
             $reject_nonce = wp_create_nonce('mod_request_reject_' . $item['id']);
 
-            $actions = [
-                'approve' => sprintf(
-                    '<a href="#" class="approve-mod-request" data-request-id="%d" data-nonce="%s" style="color: #2271b1;">%s</a>',
-                    $item['id'],
-                    $approve_nonce,
-                    __('Approve', 'custom-lottery')
-                ),
-                'reject' => sprintf(
-                    '<a href="#" class="reject-mod-request" data-request-id="%d" data-nonce="%s" style="color: #d63638;">%s</a>',
-                    $item['id'],
-                    $reject_nonce,
-                    __('Reject', 'custom-lottery')
-                ),
-            ];
-            $output .= $this->row_actions($actions);
+            $approve_link = sprintf(
+                '<a href="#" class="approve-mod-request" data-request-id="%d" data-nonce="%s" style="color: #2271b1;">%s</a>',
+                $item['id'],
+                $approve_nonce,
+                __('Approve', 'custom-lottery')
+            );
+
+            $reject_link = sprintf(
+                '<a href="#" class="reject-mod-request" data-request-id="%d" data-nonce="%s" style="color: #d63638;">%s</a>',
+                $item['id'],
+                $reject_nonce,
+                __('Reject', 'custom-lottery')
+            );
+
+            $output .= '<div class="row-actions"><span class="approve">' . $approve_link . ' | </span><span class="reject">' . $reject_link . '</span></div>';
         }
 
         return $output;

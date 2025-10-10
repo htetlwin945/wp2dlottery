@@ -12,6 +12,12 @@ function custom_lottery_mod_requests_page_callback() {
     $mod_requests_list_table = new Lotto_Mod_Requests_List_Table();
     $mod_requests_list_table->prepare_items();
     ?>
+    <style type="text/css">
+        /* Make row actions always visible on the modification requests table */
+        .wp-list-table .row-actions {
+            visibility: visible;
+        }
+    </style>
     <div class="wrap">
         <h1 class="wp-heading-inline"><?php echo esc_html__('Modification Requests', 'custom-lottery'); ?></h1>
         <form method="post">
