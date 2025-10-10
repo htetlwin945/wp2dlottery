@@ -103,7 +103,7 @@ function custom_lottery_enqueue_scripts($hook) {
     }
 
     // For the admin's "Modification Requests" page
-    if ($hook === 'lottery_page_custom-lottery-mod-requests') {
+    if (strpos($hook, 'custom-lottery-mod-requests') !== false) {
         wp_enqueue_script(
             'custom-lottery-admin-mod-requests',
             CUSTOM_LOTTERY_PLUGIN_URL . 'js/admin-mod-requests.js',
