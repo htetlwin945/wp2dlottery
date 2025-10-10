@@ -185,16 +185,22 @@ class Lotto_Entries_List_Table extends WP_List_Table {
         $where_clauses = [];
         $query_params = [];
 
+        $current_page_slug = isset($_REQUEST['page']) ? sanitize_key($_REQUEST['page']) : '';
         $current_user = wp_get_current_user();
-        if (in_array('commission_agent', (array) $current_user->roles)) {
+
+        // If we are on the agent's dedicated page ('My Entries'), always filter by the current agent's ID.
+        if ($current_page_slug === 'custom-lottery-agent-entries') {
             $agent_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_agents WHERE user_id = %d", $current_user->ID));
             if ($agent_id) {
                 $where_clauses[] = "agent_id = %d";
                 $query_params[] = $agent_id;
             } else {
+                // This agent user is not properly configured in the lotto_agents table, so show no entries.
                 $where_clauses[] = "1=0";
             }
-        } elseif (current_user_can('manage_options') && $filter_agent_id > 0) {
+        }
+        // For all other pages (i.e., the admin's 'All Entries' page), only filter if an agent is selected in the dropdown.
+        elseif (current_user_can('manage_options') && $filter_agent_id > 0) {
             $where_clauses[] = "agent_id = %d";
             $query_params[] = $filter_agent_id;
         }

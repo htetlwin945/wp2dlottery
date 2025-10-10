@@ -63,8 +63,8 @@ function custom_lottery_enqueue_scripts($hook) {
         return;
     }
 
-    // For pages with the lottery entry form (Lottery Entry & All Entries)
-    if ($hook === 'lottery_page_custom-lottery-entry' || strpos($hook, 'custom-lottery-all-entries') !== false) {
+    // For pages with the lottery entry form (Lottery Entry & All Entries popups)
+    if (strpos($hook, 'custom-lottery-entry') !== false || strpos($hook, 'custom-lottery-all-entries') !== false) {
         wp_enqueue_style('jquery-ui-css', 'https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/themes/smoothness/jquery-ui.css');
         wp_enqueue_script(
             'custom-lottery-entry',

@@ -87,10 +87,25 @@ function custom_lottery_search_customers_callback() {
         wp_send_json([]);
     }
 
-    $results = $wpdb->get_results($wpdb->prepare(
-        "SELECT customer_name, phone FROM $table_customers WHERE phone LIKE %s LIMIT 10",
-        '%' . $wpdb->esc_like($term) . '%'
-    ));
+    $current_user = wp_get_current_user();
+    $agent_id = null;
+
+    if (in_array('commission_agent', (array) $current_user->roles)) {
+        $table_agents = $wpdb->prefix . 'lotto_agents';
+        $agent_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_agents WHERE user_id = %d", $current_user->ID));
+    }
+
+    $sql = "SELECT customer_name, phone FROM $table_customers WHERE phone LIKE %s";
+    $params = ['%' . $wpdb->esc_like($term) . '%'];
+
+    if ($agent_id) {
+        $sql .= " AND agent_id = %d";
+        $params[] = $agent_id;
+    }
+
+    $sql .= " LIMIT 10";
+
+    $results = $wpdb->get_results($wpdb->prepare($sql, $params));
 
     $suggestions = [];
     foreach ($results as $result) {
