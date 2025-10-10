@@ -80,25 +80,48 @@ function custom_lottery_search_customers_callback() {
 
     global $wpdb;
     $table_customers = $wpdb->prefix . 'lotto_customers';
+    $table_agents = $wpdb->prefix . 'lotto_agents';
+    $current_user = wp_get_current_user();
 
     $term = isset($_REQUEST['term']) ? sanitize_text_field($_REQUEST['term']) : '';
 
     if (empty($term)) {
         wp_send_json([]);
+        return;
     }
 
-    $results = $wpdb->get_results($wpdb->prepare(
-        "SELECT customer_name, phone FROM $table_customers WHERE phone LIKE %s LIMIT 10",
+    $query = "SELECT customer_name, phone FROM $table_customers WHERE (phone LIKE %s OR customer_name LIKE %s)";
+    $params = [
+        '%' . $wpdb->esc_like($term) . '%',
         '%' . $wpdb->esc_like($term) . '%'
-    ));
+    ];
+
+    // If the user is a commission agent and NOT an admin, filter by their agent_id
+    if (in_array('commission_agent', (array) $current_user->roles) && !current_user_can('manage_options')) {
+        $agent_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_agents WHERE user_id = %d", $current_user->ID));
+        if ($agent_id) {
+            $query .= " AND agent_id = %d";
+            $params[] = $agent_id;
+        } else {
+            // Agent record not found for this user, so return no results.
+            wp_send_json([]);
+            return;
+        }
+    }
+
+    $query .= " LIMIT 10";
+
+    $results = $wpdb->get_results($wpdb->prepare($query, $params));
 
     $suggestions = [];
-    foreach ($results as $result) {
-        $suggestions[] = [
-            'label' => $result->customer_name . ' (' . $result->phone . ')',
-            'value' => $result->phone,
-            'name'  => $result->customer_name
-        ];
+    if ($results) {
+        foreach ($results as $result) {
+            $suggestions[] = [
+                'label' => $result->customer_name . ' (' . $result->phone . ')',
+                'value' => $result->phone,
+                'name'  => $result->customer_name
+            ];
+        }
     }
 
     wp_send_json($suggestions);
@@ -121,10 +144,16 @@ function custom_lottery_submit_entries_callback() {
     $current_datetime = new DateTime('now', $timezone);
     $current_date = $current_datetime->format('Y-m-d');
 
-    // Get agent_id if the current user is a commission agent
+    // Get agent_id based on user role
     $agent_id = null;
     $current_user = wp_get_current_user();
-    if (in_array('commission_agent', (array) $current_user->roles)) {
+
+    // Case 1: Admin/manager submitting on behalf of an agent from the entry form
+    if (current_user_can('manage_options') && isset($_POST['agent_id']) && !empty($_POST['agent_id'])) {
+        $agent_id = absint($_POST['agent_id']);
+    }
+    // Case 2: A commission agent submitting for themselves
+    elseif (in_array('commission_agent', (array) $current_user->roles)) {
         $agent_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_agents WHERE user_id = %d", $current_user->ID));
     }
 

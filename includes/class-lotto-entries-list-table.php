@@ -186,15 +186,18 @@ class Lotto_Entries_List_Table extends WP_List_Table {
         $query_params = [];
 
         $current_user = wp_get_current_user();
-        if (in_array('commission_agent', (array) $current_user->roles)) {
+        // If the user is a commission agent BUT NOT an admin/manager
+        if (in_array('commission_agent', (array) $current_user->roles) && !current_user_can('manage_options')) {
             $agent_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_agents WHERE user_id = %d", $current_user->ID));
             if ($agent_id) {
                 $where_clauses[] = "agent_id = %d";
                 $query_params[] = $agent_id;
             } else {
+                // If no agent record found for this user, show no entries.
                 $where_clauses[] = "1=0";
             }
         } elseif (current_user_can('manage_options') && $filter_agent_id > 0) {
+            // If admin is filtering by a specific agent
             $where_clauses[] = "agent_id = %d";
             $query_params[] = $filter_agent_id;
         }
@@ -210,9 +213,20 @@ class Lotto_Entries_List_Table extends WP_List_Table {
             $query_params[] = $filter_session;
         }
 
-        $where_sql = 'WHERE ' . implode(' AND ', $where_clauses);
+        $where_sql = "";
+        if (!empty($where_clauses)) {
+            $where_sql = 'WHERE ' . implode(' AND ', $where_clauses);
+        }
+
         $all_items_query = "SELECT * FROM $table_name $where_sql ORDER BY customer_name, phone, timestamp ASC";
-        $all_items = $wpdb->get_results($wpdb->prepare($all_items_query, $query_params), ARRAY_A);
+
+        // Use call_user_func_array to correctly pass parameters to wpdb->prepare
+        $prepared_query = call_user_func_array(
+            [$wpdb, 'prepare'],
+            array_merge([$all_items_query], $query_params)
+        );
+
+        $all_items = $wpdb->get_results($prepared_query, ARRAY_A);
 
         $grouped_items = [];
         foreach ($all_items as $item) {
