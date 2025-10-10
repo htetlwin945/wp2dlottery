@@ -4,7 +4,7 @@ Donate link: https://example.com/
 Tags: lottery, 2-digit
 Requires at least: 5.0
 Tested up to: 6.0
-Stable tag: 1.3.3
+Stable tag: 1.4.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -33,6 +33,12 @@ Once activated, you can access all features through the "Lottery" menu in the Wo
 3. The settings page.
 
 == Changelog ==
+
+= 1.4.0 =
+* Refactor: Reworked the "Request Modification" feature into a direct edit proposal system. Agents can now propose specific changes to an entry's number and amount, which an admin can approve or reject. Upon approval, the original entry is automatically updated.
+* Fix: Corrected a major bug where JavaScript was not loading on the Commission Agent portal pages, which prevented the "Lottery Entry" and "My Entries" pages from functioning correctly.
+* Fix: Scoped the customer search AJAX handler to only return customers belonging to the logged-in agent, preventing data leakage.
+* Security: Added role capability checks to all relevant AJAX handlers to improve security.
 
 = 1.3.3 =
 * Feature: The "Clear Data by Date" tool in the Tools page now also clears the winning numbers for the selected date, ensuring a more complete data reset.
