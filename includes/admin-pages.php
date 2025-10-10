@@ -6,121 +6,307 @@ if ( ! defined( 'WPINC' ) ) {
 }
 
 /**
+ * Callback for the Modification Requests page.
+ */
+function custom_lottery_mod_requests_page_callback() {
+    $mod_requests_list_table = new Lotto_Mod_Requests_List_Table();
+    $mod_requests_list_table->prepare_items();
+    ?>
+    <div class="wrap">
+        <h1 class="wp-heading-inline"><?php echo esc_html__('Modification Requests', 'custom-lottery'); ?></h1>
+        <form method="post">
+            <?php $mod_requests_list_table->display(); ?>
+        </form>
+    </div>
+    <?php
+}
+
+/**
  * Register the admin menu pages.
  */
 function custom_lottery_admin_menu() {
-    $dashboard_hook = add_menu_page(
-        __( 'Lottery', 'custom-lottery' ),
-        __( 'Lottery', 'custom-lottery' ),
-        'manage_options',
-        'custom-lottery-dashboard',
-        'custom_lottery_dashboard_page_callback',
-        'dashicons-tickets-alt',
-        20
-    );
+    $current_user = wp_get_current_user();
 
-    add_submenu_page(
-        'custom-lottery-dashboard',
-        __( 'Dashboard', 'custom-lottery' ),
-        __( 'Dashboard', 'custom-lottery' ),
-        'manage_options',
-        'custom-lottery-dashboard',
-        'custom_lottery_dashboard_page_callback'
-    );
+    // If user is a Commission Agent AND NOT an admin/manager, show the Agent Portal.
+    if (in_array('commission_agent', (array) $current_user->roles) && !current_user_can('manage_options')) {
+        // Agent Portal Menu
+        add_menu_page(
+            __('Agent Portal', 'custom-lottery'),
+            __('Agent Portal', 'custom-lottery'),
+            'enter_lottery_numbers',
+            'custom-lottery-agent-dashboard',
+            'custom_lottery_agent_dashboard_page_callback',
+            'dashicons-businessman',
+            21
+        );
+        add_submenu_page(
+            'custom-lottery-agent-dashboard',
+            __('Dashboard', 'custom-lottery'),
+            __('Dashboard', 'custom-lottery'),
+            'enter_lottery_numbers',
+            'custom-lottery-agent-dashboard',
+            'custom_lottery_agent_dashboard_page_callback'
+        );
+        add_submenu_page(
+            'custom-lottery-agent-dashboard',
+            __('Lottery Entry', 'custom-lottery'),
+            __('Lottery Entry', 'custom-lottery'),
+            'enter_lottery_numbers',
+            'custom-lottery-entry',
+            'custom_lottery_entry_page_callback'
+        );
+        add_submenu_page(
+            'custom-lottery-agent-dashboard',
+            __('My Entries', 'custom-lottery'),
+            __('My Entries', 'custom-lottery'),
+            'enter_lottery_numbers',
+            'custom-lottery-agent-entries',
+            'custom_lottery_all_entries_page_callback'
+        );
+        add_submenu_page(
+            'custom-lottery-agent-dashboard',
+            __('My Customers', 'custom-lottery'),
+            __('My Customers', 'custom-lottery'),
+            'enter_lottery_numbers',
+            'custom-lottery-agent-customers',
+            'custom_lottery_customers_page_callback'
+        );
 
-    add_submenu_page(
-        'custom-lottery-dashboard',
-        __( 'Lottery Entry', 'custom-lottery' ),
-        __( 'Lottery Entry', 'custom-lottery' ),
-        'enter_lottery_numbers', // Use custom capability
-        'custom-lottery-entry',
-        'custom_lottery_entry_page_callback'
-    );
+    } else {
+        // Original Menu for Admins, Managers, and other roles
+        $dashboard_hook = add_menu_page(
+            __('Lottery', 'custom-lottery'),
+            __('Lottery', 'custom-lottery'),
+            'manage_options',
+            'custom-lottery-dashboard',
+            'custom_lottery_dashboard_page_callback',
+            'dashicons-tickets-alt',
+            20
+        );
 
-    add_submenu_page(
-        'custom-lottery-dashboard',
-        __( 'Reports', 'custom-lottery' ),
-        __( 'Reports', 'custom-lottery' ),
-        'manage_options',
-        'custom-lottery-reports',
-        'custom_lottery_reports_page_callback'
-    );
+        add_submenu_page(
+            'custom-lottery-dashboard',
+            __('Modification Requests', 'custom-lottery'),
+            __('Modification Requests', 'custom-lottery'),
+            'manage_options',
+            'custom-lottery-mod-requests',
+            'custom_lottery_mod_requests_page_callback'
+        );
 
-    add_submenu_page(
-        'custom-lottery-dashboard',
-        __( 'Advanced Reports', 'custom-lottery' ),
-        __( 'Advanced Reports', 'custom-lottery' ),
-        'manage_options',
-        'custom-lottery-advanced-reports',
-        'custom_lottery_advanced_reports_page_callback'
-    );
+        add_submenu_page(
+            'custom-lottery-dashboard',
+            __('Dashboard', 'custom-lottery'),
+            __('Dashboard', 'custom-lottery'),
+            'manage_options',
+            'custom-lottery-dashboard',
+            'custom_lottery_dashboard_page_callback'
+        );
 
-    add_submenu_page(
-        'custom-lottery-dashboard',
-        __( 'Payouts', 'custom-lottery' ),
-        __( 'Payouts', 'custom-lottery' ),
-        'manage_options',
-        'custom-lottery-payouts',
-        'custom_lottery_payouts_page_callback'
-    );
+        add_submenu_page(
+            'custom-lottery-dashboard',
+            __('Lottery Entry', 'custom-lottery'),
+            __('Lottery Entry', 'custom-lottery'),
+            'enter_lottery_numbers', // Use custom capability
+            'custom-lottery-entry',
+            'custom_lottery_entry_page_callback'
+        );
 
-    add_submenu_page(
-        'custom-lottery-dashboard',
-        __( 'Number Limiting', 'custom-lottery' ),
-        __( 'Number Limiting', 'custom-lottery' ),
-        'manage_options',
-        'custom-lottery-limits',
-        'custom_lottery_limits_page_callback'
-    );
+        add_submenu_page(
+            'custom-lottery-dashboard',
+            __('Reports', 'custom-lottery'),
+            __('Reports', 'custom-lottery'),
+            'manage_options',
+            'custom-lottery-reports',
+            'custom_lottery_reports_page_callback'
+        );
 
-    add_submenu_page(
-        'custom-lottery-dashboard',
-        __( 'All Entries', 'custom-lottery' ),
-        __( 'All Entries', 'custom-lottery' ),
-        'manage_options',
-        'custom-lottery-all-entries',
-        'custom_lottery_all_entries_page_callback'
-    );
+        add_submenu_page(
+            'custom-lottery-dashboard',
+            __('Advanced Reports', 'custom-lottery'),
+            __('Advanced Reports', 'custom-lottery'),
+            'manage_options',
+            'custom-lottery-advanced-reports',
+            'custom_lottery_advanced_reports_page_callback'
+        );
 
-    add_submenu_page(
-        'custom-lottery-dashboard',
-        __( 'Tools', 'custom-lottery' ),
-        __( 'Tools', 'custom-lottery' ),
-        'manage_options',
-        'custom-lottery-tools',
-        'custom_lottery_tools_page_callback'
-    );
+        add_submenu_page(
+            'custom-lottery-dashboard',
+            __('Payouts', 'custom-lottery'),
+            __('Payouts', 'custom-lottery'),
+            'manage_options',
+            'custom-lottery-payouts',
+            'custom_lottery_payouts_page_callback'
+        );
 
-    add_submenu_page(
-        'custom-lottery-dashboard',
-        __( 'Customers', 'custom-lottery' ),
-        __( 'Customers', 'custom-lottery' ),
-        'manage_options',
-        'custom-lottery-customers',
-        'custom_lottery_customers_page_callback'
-    );
+        add_submenu_page(
+            'custom-lottery-dashboard',
+            __('Number Limiting', 'custom-lottery'),
+            __('Number Limiting', 'custom-lottery'),
+            'manage_options',
+            'custom-lottery-limits',
+            'custom_lottery_limits_page_callback'
+        );
 
-    add_submenu_page(
-        'custom-lottery-dashboard',
-        'Lottery Settings',
-        'Settings',
-        'manage_options',
-        'custom-lottery-settings',
-        'custom_lottery_settings_page_callback'
-    );
+        add_submenu_page(
+            'custom-lottery-dashboard',
+            __('All Entries', 'custom-lottery'),
+            __('All Entries', 'custom-lottery'),
+            'manage_options',
+            'custom-lottery-all-entries',
+            'custom_lottery_all_entries_page_callback'
+        );
 
-    add_submenu_page(
-        'custom-lottery-dashboard',
-        __( 'Agents', 'custom-lottery' ),
-        __( 'Agents', 'custom-lottery' ),
-        'manage_options',
-        'custom-lottery-agents',
-        'custom_lottery_agents_page_callback'
-    );
+        add_submenu_page(
+            'custom-lottery-dashboard',
+            __('Tools', 'custom-lottery'),
+            __('Tools', 'custom-lottery'),
+            'manage_options',
+            'custom-lottery-tools',
+            'custom_lottery_tools_page_callback'
+        );
 
-    add_action( "load-{$dashboard_hook}", 'custom_lottery_add_dashboard_widgets' );
+        add_submenu_page(
+            'custom-lottery-dashboard',
+            __('Customers', 'custom-lottery'),
+            __('Customers', 'custom-lottery'),
+            'manage_options',
+            'custom-lottery-customers',
+            'custom_lottery_customers_page_callback'
+        );
+
+        add_submenu_page(
+            'custom-lottery-dashboard',
+            'Lottery Settings',
+            'Settings',
+            'manage_options',
+            'custom-lottery-settings',
+            'custom_lottery_settings_page_callback'
+        );
+
+        add_submenu_page(
+            'custom-lottery-dashboard',
+            __('Agents', 'custom-lottery'),
+            __('Agents', 'custom-lottery'),
+            'manage_options',
+            'custom-lottery-agents',
+            'custom_lottery_agents_page_callback'
+        );
+
+        add_action("load-{$dashboard_hook}", 'custom_lottery_add_dashboard_widgets');
+    }
 }
-add_action( 'admin_menu', 'custom_lottery_admin_menu' );
+add_action('admin_menu', 'custom_lottery_admin_menu');
+
+/**
+ * Callback for the Agent Dashboard page.
+ */
+function custom_lottery_agent_dashboard_page_callback() {
+    global $wpdb;
+    $table_agents = $wpdb->prefix . 'lotto_agents';
+    $table_entries = $wpdb->prefix . 'lotto_entries';
+    $current_user_id = get_current_user_id();
+
+    $agent = $wpdb->get_row($wpdb->prepare("SELECT id, commission_rate FROM $table_agents WHERE user_id = %d", $current_user_id));
+
+    if (!$agent) {
+        echo '<div class="wrap"><h1>' . esc_html__('Error', 'custom-lottery') . '</h1><p>' . esc_html__('Could not retrieve your agent information.', 'custom-lottery') . '</p></div>';
+        return;
+    }
+
+    $agent_id = $agent->id;
+    $commission_rate = $agent->commission_rate / 100;
+
+    $timezone = new DateTimeZone('Asia/Yangon');
+
+    // Today's stats
+    $today_start = (new DateTime('today', $timezone))->format('Y-m-d H:i:s');
+    $today_end = (new DateTime('tomorrow', $timezone))->format('Y-m-d H:i:s');
+    $todays_sales = $wpdb->get_var($wpdb->prepare(
+        "SELECT SUM(amount) FROM $table_entries WHERE agent_id = %d AND timestamp >= %s AND timestamp < %s",
+        $agent_id, $today_start, $today_end
+    ));
+    $todays_commission = $todays_sales * $commission_rate;
+
+    // This month's stats
+    $month_start = (new DateTime('first day of this month', $timezone))->format('Y-m-d H:i:s');
+    $month_end = (new DateTime('first day of next month', $timezone))->format('Y-m-d H:i:s');
+    $monthly_sales = $wpdb->get_var($wpdb->prepare(
+        "SELECT SUM(amount) FROM $table_entries WHERE agent_id = %d AND timestamp >= %s AND timestamp < %s",
+        $agent_id, $month_start, $month_end
+    ));
+    $monthly_commission = $monthly_sales * $commission_rate;
+
+    // Recent entries
+    $recent_entries = $wpdb->get_results($wpdb->prepare(
+        "SELECT customer_name, lottery_number, amount, timestamp FROM $table_entries WHERE agent_id = %d ORDER BY timestamp DESC LIMIT 10",
+        $agent_id
+    ));
+    ?>
+    <div class="wrap">
+        <h1><?php echo esc_html__('Agent Dashboard', 'custom-lottery'); ?></h1>
+
+        <div id="dashboard-widgets-wrap">
+            <div id="dashboard-widgets" class="metabox-holder">
+                <div class="postbox-container" style="width: 100%;">
+                    <div class="meta-box-sortables">
+                        <div class="postbox">
+                            <h2 class="hndle"><span><?php esc_html_e('Sales Summary', 'custom-lottery'); ?></span></h2>
+                            <div class="inside">
+                                <div style="display: flex; justify-content: space-around; text-align: center;">
+                                    <div>
+                                        <h3><?php esc_html_e('Today\'s Sales', 'custom-lottery'); ?></h3>
+                                        <p style="font-size: 24px; margin: 0;"><?php echo number_format($todays_sales ?? 0, 2); ?> Kyat</p>
+                                    </div>
+                                    <div>
+                                        <h3><?php esc_html_e('Today\'s Commission', 'custom-lottery'); ?></h3>
+                                        <p style="font-size: 24px; margin: 0; color: green;"><?php echo number_format($todays_commission ?? 0, 2); ?> Kyat</p>
+                                    </div>
+                                    <div>
+                                        <h3><?php esc_html_e('This Month\'s Sales', 'custom-lottery'); ?></h3>
+                                        <p style="font-size: 24px; margin: 0;"><?php echo number_format($monthly_sales ?? 0, 2); ?> Kyat</p>
+                                    </div>
+                                     <div>
+                                        <h3><?php esc_html_e('This Month\'s Commission', 'custom-lottery'); ?></h3>
+                                        <p style="font-size: 24px; margin: 0; color: green;"><?php echo number_format($monthly_commission ?? 0, 2); ?> Kyat</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="postbox">
+                            <h2 class="hndle"><span><?php esc_html_e('Recent Entries', 'custom-lottery'); ?></span></h2>
+                            <div class="inside">
+                                <table class="wp-list-table widefat fixed striped">
+                                    <thead>
+                                        <tr>
+                                            <th><?php esc_html_e('Date', 'custom-lottery'); ?></th>
+                                            <th><?php esc_html_e('Customer', 'custom-lottery'); ?></th>
+                                            <th><?php esc_html_e('Number', 'custom-lottery'); ?></th>
+                                            <th><?php esc_html_e('Amount (Kyat)', 'custom-lottery'); ?></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php if ($recent_entries) : foreach ($recent_entries as $entry) : ?>
+                                            <tr>
+                                                <td><?php echo esc_html(date('Y-m-d H:i', strtotime($entry->timestamp))); ?></td>
+                                                <td><?php echo esc_html($entry->customer_name); ?></td>
+                                                <td><?php echo esc_html($entry->lottery_number); ?></td>
+                                                <td><?php echo number_format($entry->amount, 2); ?></td>
+                                            </tr>
+                                        <?php endforeach; else : ?>
+                                            <tr><td colspan="4"><?php esc_html_e('No recent entries found.', 'custom-lottery'); ?></td></tr>
+                                        <?php endif; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <?php
+}
 
 /**
  * Callback for the Agents page.
@@ -273,18 +459,156 @@ function custom_lottery_agents_page_callback() {
 }
 
 /**
+ * Handles the form submission for adding/editing customers for agents.
+ * This function is called before the page callback to process form data.
+ */
+function custom_lottery_agent_customer_form_handler() {
+    if (!isset($_POST['submit_customer']) || !isset($_POST['cl_save_customer_nonce'])) {
+        return;
+    }
+
+    if (!wp_verify_nonce($_POST['cl_save_customer_nonce'], 'cl_save_customer_action')) {
+        wp_die('Security check failed.');
+    }
+
+    global $wpdb;
+    $table_customers = $wpdb->prefix . 'lotto_customers';
+    $table_agents = $wpdb->prefix . 'lotto_agents';
+    $current_user_id = get_current_user_id();
+
+    $agent_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_agents WHERE user_id = %d", $current_user_id));
+
+    if (!$agent_id) {
+        wp_die('You are not registered as an agent.');
+    }
+
+    $customer_id = isset($_POST['customer_id']) ? absint($_POST['customer_id']) : 0;
+    $customer_name = sanitize_text_field($_POST['customer_name']);
+    $phone = sanitize_text_field($_POST['phone']);
+
+    $data = [
+        'customer_name' => $customer_name,
+        'phone' => $phone,
+        'agent_id' => $agent_id, // Always associate with the current agent
+    ];
+
+    if ($customer_id > 0) {
+        // Security check: Ensure the agent owns this customer before updating
+        $owner_agent_id = $wpdb->get_var($wpdb->prepare("SELECT agent_id FROM $table_customers WHERE id = %d", $customer_id));
+        if ($owner_agent_id != $agent_id) {
+            wp_die('You do not have permission to edit this customer.');
+        }
+
+        if ($wpdb->update($table_customers, $data, ['id' => $customer_id])) {
+             add_action('admin_notices', function() {
+                echo '<div class="updated"><p>' . esc_html__('Customer updated successfully.', 'custom-lottery') . '</p></div>';
+            });
+        }
+    } else {
+        $data['last_seen'] = current_time('mysql');
+        if ($wpdb->insert($table_customers, $data)) {
+            add_action('admin_notices', function() {
+                echo '<div class="updated"><p>' . esc_html__('Customer added successfully.', 'custom-lottery') . '</p></div>';
+            });
+        }
+    }
+}
+add_action('admin_init', 'custom_lottery_agent_customer_form_handler');
+
+
+/**
+ * Renders the add/edit form for customers.
+ */
+function custom_lottery_render_customer_form($customer = null) {
+    $page_slug = isset($_REQUEST['page']) ? sanitize_key($_REQUEST['page']) : '';
+    $form_title = $customer ? __('Edit Customer', 'custom-lottery') : __('Add New Customer', 'custom-lottery');
+    $button_text = $customer ? __('Save Changes', 'custom-lottery') : __('Add Customer', 'custom-lottery');
+    $customer_id = $customer ? $customer->id : 0;
+    $customer_name = $customer ? $customer->customer_name : '';
+    $phone = $customer ? $customer->phone : '';
+    ?>
+    <div class="wrap">
+        <h1><?php echo esc_html($form_title); ?></h1>
+        <a href="?page=<?php echo esc_attr($page_slug); ?>" class="button">&larr; <?php esc_html_e('Back to Customers List', 'custom-lottery'); ?></a>
+        <form method="post" action="?page=<?php echo esc_attr($page_slug); ?>" style="margin-top: 20px;">
+            <input type="hidden" name="customer_id" value="<?php echo esc_attr($customer_id); ?>">
+            <?php wp_nonce_field('cl_save_customer_action', 'cl_save_customer_nonce'); ?>
+            <table class="form-table">
+                <tr>
+                    <th scope="row"><label for="customer_name"><?php esc_html_e('Customer Name', 'custom-lottery'); ?></label></th>
+                    <td><input type="text" id="customer_name" name="customer_name" value="<?php echo esc_attr($customer_name); ?>" class="regular-text" required></td>
+                </tr>
+                <tr>
+                    <th scope="row"><label for="phone"><?php esc_html_e('Phone', 'custom-lottery'); ?></label></th>
+                    <td><input type="text" id="phone" name="phone" value="<?php echo esc_attr($phone); ?>" class="regular-text" required></td>
+                </tr>
+            </table>
+            <?php submit_button($button_text, 'primary', 'submit_customer'); ?>
+        </form>
+    </div>
+    <?php
+}
+
+/**
  * Callback for the Customers page.
  */
 function custom_lottery_customers_page_callback() {
-    echo '<div class="wrap">';
-    echo '<h1 class="wp-heading-inline">' . esc_html__('Customers', 'custom-lottery') . '</h1>';
-    echo '<a href="?page=' . esc_attr('custom-lottery-customers') . '&action=add" class="page-title-action">' . esc_html__('Add New', 'custom-lottery') . '</a>';
+    global $wpdb;
+    $table_customers = $wpdb->prefix . 'lotto_customers';
+    $table_agents = $wpdb->prefix . 'lotto_agents';
+    $current_user_id = get_current_user_id();
 
-    $customers_list_table = new Lotto_Customers_List_Table();
-    $customers_list_table->prepare_items();
-    $customers_list_table->display();
+    $action = isset($_REQUEST['action']) ? sanitize_key($_REQUEST['action']) : 'list';
+    $customer_id = isset($_REQUEST['customer_id']) ? absint($_REQUEST['customer_id']) : 0;
+    $page_slug = isset($_REQUEST['page']) ? sanitize_key($_REQUEST['page']) : '';
 
-    echo '</div>';
+    // Handle deletion for agents
+    if ($action === 'delete' && $customer_id > 0 && in_array($page_slug, ['custom-lottery-agent-customers'])) {
+        $nonce = isset($_REQUEST['_wpnonce']) ? $_REQUEST['_wpnonce'] : '';
+        if (wp_verify_nonce($nonce, 'cl_delete_customer_' . $customer_id)) {
+            // Security check: Ensure the agent owns this customer before deleting
+            $agent_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_agents WHERE user_id = %d", $current_user_id));
+            $owner_agent_id = $wpdb->get_var($wpdb->prepare("SELECT agent_id FROM $table_customers WHERE id = %d", $customer_id));
+
+            if ($agent_id && $owner_agent_id == $agent_id) {
+                if ($wpdb->delete($table_customers, ['id' => $customer_id])) {
+                    echo '<div class="updated"><p>' . esc_html__('Customer deleted successfully.', 'custom-lottery') . '</p></div>';
+                }
+            } else {
+                 echo '<div class="error"><p>' . esc_html__('You do not have permission to delete this customer.', 'custom-lottery') . '</p></div>';
+            }
+        }
+        $action = 'list'; // Go back to the list view
+    }
+
+
+    if (($action === 'add' || $action === 'edit') && in_array($page_slug, ['custom-lottery-customers', 'custom-lottery-agent-customers'])) {
+        $customer = null;
+        if ($action === 'edit' && $customer_id > 0) {
+            $customer = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_customers WHERE id = %d", $customer_id));
+
+            // Security check for agents trying to edit
+            if (!current_user_can('manage_options')) {
+                $agent_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_agents WHERE user_id = %d", $current_user_id));
+                if (!$customer || $customer->agent_id != $agent_id) {
+                    wp_die('You do not have permission to edit this customer.');
+                }
+            }
+        }
+        custom_lottery_render_customer_form($customer);
+    } else {
+        $customers_list_table = new Lotto_Customers_List_Table();
+        $customers_list_table->prepare_items();
+        ?>
+        <div class="wrap">
+            <h1 class="wp-heading-inline"><?php echo esc_html__('Customers', 'custom-lottery'); ?></h1>
+            <a href="?page=<?php echo esc_attr($page_slug); ?>&action=add" class="page-title-action"><?php echo esc_html__('Add New', 'custom-lottery'); ?></a>
+            <form method="post">
+                <?php $customers_list_table->display(); ?>
+            </form>
+        </div>
+        <?php
+    }
 }
 
 /**
@@ -670,6 +994,20 @@ function custom_lottery_all_entries_page_callback() {
             <div id="lottery-entry-popup" title="<?php esc_attr_e('Add New Lottery Entry', 'custom-lottery'); ?>" style="display:none;">
                 <?php custom_lottery_render_entry_form(); ?>
             </div>
+
+            <?php if (in_array('commission_agent', (array) wp_get_current_user()->roles)) : ?>
+            <div id="modification-request-popup" title="<?php esc_attr_e('Request Entry Modification', 'custom-lottery'); ?>" style="display:none;">
+                <form id="modification-request-form">
+                    <input type="hidden" id="mod-request-entry-id" name="entry_id">
+                    <?php wp_nonce_field('request_modification_nonce', 'mod_request_nonce'); ?>
+                    <p><?php esc_html_e('Please describe the change you would like to request for this entry.', 'custom-lottery'); ?></p>
+                    <textarea id="mod-request-notes" name="request_notes" rows="4" style="width: 100%;" required></textarea>
+                    <button type="submit" class="button button-primary" style="margin-top: 10px;"><?php esc_html_e('Submit Request', 'custom-lottery'); ?></button>
+                </form>
+                 <div id="mod-request-response"></div>
+            </div>
+            <?php endif; ?>
+
         </div>
         <?php
     }

@@ -25,7 +25,9 @@ define( 'CUSTOM_LOTTERY_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 // Include the class files and functions.
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/class-lotto-entries-list-table.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/class-lotto-customers-list-table.php' );
+require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/class-lotto-mod-requests-list-table.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/db-setup.php' );
+require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/db-schema-mods.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/admin-pages.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/ajax-handlers.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/cron-jobs.php' );
@@ -37,10 +39,18 @@ require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/class-lotto-winning-numbers
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/settings-page.php' );
 
 /**
+ * Main activation function that calls all setup routines.
+ */
+function custom_lottery_plugin_activation() {
+    activate_custom_lottery_plugin();
+    custom_lottery_apply_schema_mods();
+    custom_lottery_add_roles();
+}
+
+/**
  * Register activation and deactivation hooks.
  */
-register_activation_hook( __FILE__, 'activate_custom_lottery_plugin' );
-register_activation_hook( __FILE__, 'custom_lottery_add_roles' );
+register_activation_hook( __FILE__, 'custom_lottery_plugin_activation' );
 register_deactivation_hook( __FILE__, 'custom_lottery_clear_cron_jobs' );
 register_deactivation_hook( __FILE__, 'custom_lottery_remove_roles' );
 
@@ -65,13 +75,35 @@ function custom_lottery_enqueue_scripts($hook) {
         );
     }
 
-    // For the All Entries page (additionally load popup logic)
-    if (strpos($hook, 'custom-lottery-all-entries') !== false) {
+    // For the All Entries page (admin) and My Entries page (agent)
+    if (strpos($hook, 'custom-lottery-all-entries') !== false || strpos($hook, 'custom-lottery-agent-entries') !== false) {
         wp_enqueue_script(
             'custom-lottery-all-entries',
             CUSTOM_LOTTERY_PLUGIN_URL . 'js/all-entries.js',
             ['jquery', 'jquery-ui-dialog', 'custom-lottery-entry'],
             '1.1.0',
+            true
+        );
+    }
+
+    // For the agent's "My Entries" page, load the modification request script
+    if (strpos($hook, 'custom-lottery-agent-entries') !== false) {
+        wp_enqueue_script(
+            'custom-lottery-mod-requests',
+            CUSTOM_LOTTERY_PLUGIN_URL . 'js/modification-requests.js',
+            ['jquery', 'jquery-ui-dialog'],
+            CUSTOM_LOTTERY_VERSION,
+            true
+        );
+    }
+
+    // For the admin's "Modification Requests" page
+    if ($hook === 'lottery_page_custom-lottery-mod-requests') {
+        wp_enqueue_script(
+            'custom-lottery-admin-mod-requests',
+            CUSTOM_LOTTERY_PLUGIN_URL . 'js/admin-mod-requests.js',
+            ['jquery'],
+            CUSTOM_LOTTERY_VERSION,
             true
         );
     }

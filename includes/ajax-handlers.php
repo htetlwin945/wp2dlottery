@@ -428,3 +428,139 @@ function custom_lottery_confirm_cover_callback() {
     }
 }
 add_action('wp_ajax_confirm_cover', 'custom_lottery_confirm_cover_callback');
+
+/**
+ * AJAX handler for an agent to request a modification to an entry.
+ */
+function custom_lottery_request_entry_modification_callback() {
+    check_ajax_referer('request_modification_nonce', 'nonce');
+
+    $entry_id = isset($_POST['entry_id']) ? absint($_POST['entry_id']) : 0;
+    $request_notes = isset($_POST['request_notes']) ? sanitize_textarea_field($_POST['request_notes']) : '';
+
+    if (empty($entry_id) || empty($request_notes)) {
+        wp_send_json_error('Invalid data provided.');
+        return;
+    }
+
+    $current_user = wp_get_current_user();
+    if (!in_array('commission_agent', (array) $current_user->roles)) {
+        wp_send_json_error('You do not have permission to perform this action.');
+        return;
+    }
+
+    global $wpdb;
+    $table_agents = $wpdb->prefix . 'lotto_agents';
+    $table_entries = $wpdb->prefix . 'lotto_entries';
+    $table_requests = $wpdb->prefix . 'lotto_modification_requests';
+
+    $agent_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_agents WHERE user_id = %d", $current_user->ID));
+    if (!$agent_id) {
+        wp_send_json_error('Could not verify your agent status.');
+        return;
+    }
+
+    // Security check: Verify the agent owns the entry
+    $entry_agent_id = $wpdb->get_var($wpdb->prepare("SELECT agent_id FROM $table_entries WHERE id = %d", $entry_id));
+    if ($entry_agent_id != $agent_id) {
+        wp_send_json_error('You can only request modifications for your own entries.');
+        return;
+    }
+
+    // Insert the modification request
+    $inserted = $wpdb->insert($table_requests, [
+        'entry_id'      => $entry_id,
+        'agent_id'      => $agent_id,
+        'request_notes' => $request_notes,
+        'status'        => 'pending',
+        'requested_at'  => current_time('mysql'),
+    ]);
+
+    if ($inserted) {
+        // Update the entry to flag that it has a modification request
+        $wpdb->update($table_entries, ['has_mod_request' => 1], ['id' => $entry_id]);
+        wp_send_json_success('Modification request submitted successfully.');
+    } else {
+        wp_send_json_error('Failed to save the modification request. Please try again.');
+    }
+}
+add_action('wp_ajax_request_entry_modification', 'custom_lottery_request_entry_modification_callback');
+
+
+/**
+ * AJAX handler for an admin to approve a modification request.
+ */
+function custom_lottery_approve_modification_request_callback() {
+    if (!isset($_POST['request_id']) || !isset($_POST['nonce'])) {
+        wp_send_json_error('Invalid request.');
+    }
+
+    $request_id = absint($_POST['request_id']);
+    check_ajax_referer('mod_request_approve_' . $request_id, 'nonce');
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Permission denied.');
+    }
+
+    global $wpdb;
+    $table_requests = $wpdb->prefix . 'lotto_modification_requests';
+    $table_entries = $wpdb->prefix . 'lotto_entries';
+
+    $request = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_requests WHERE id = %d", $request_id));
+
+    if (!$request) {
+        wp_send_json_error('Request not found.');
+    }
+
+    // Update request status
+    $wpdb->update($table_requests,
+        ['status' => 'approved', 'resolved_by' => get_current_user_id(), 'resolved_at' => current_time('mysql')],
+        ['id' => $request_id]
+    );
+
+    // Note: This action only approves the *request*. The admin must still manually edit the entry.
+    // We will clear the flag to remove it from the pending queue.
+    $wpdb->update($table_entries, ['has_mod_request' => 0], ['id' => $request->entry_id]);
+
+    wp_send_json_success(['message' => 'Request approved.', 'new_status' => 'Approved']);
+}
+add_action('wp_ajax_approve_modification_request', 'custom_lottery_approve_modification_request_callback');
+
+
+/**
+ * AJAX handler for an admin to reject a modification request.
+ */
+function custom_lottery_reject_modification_request_callback() {
+     if (!isset($_POST['request_id']) || !isset($_POST['nonce'])) {
+        wp_send_json_error('Invalid request.');
+    }
+
+    $request_id = absint($_POST['request_id']);
+    check_ajax_referer('mod_request_reject_' . $request_id, 'nonce');
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Permission denied.');
+    }
+
+    global $wpdb;
+    $table_requests = $wpdb->prefix . 'lotto_modification_requests';
+    $table_entries = $wpdb->prefix . 'lotto_entries';
+
+    $request = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_requests WHERE id = %d", $request_id));
+
+    if (!$request) {
+        wp_send_json_error('Request not found.');
+    }
+
+    // Update request status
+    $wpdb->update($table_requests,
+        ['status' => 'rejected', 'resolved_by' => get_current_user_id(), 'resolved_at' => current_time('mysql')],
+        ['id' => $request_id]
+    );
+
+    // Clear the flag on the entry
+    $wpdb->update($table_entries, ['has_mod_request' => 0], ['id' => $request->entry_id]);
+
+    wp_send_json_success(['message' => 'Request rejected.', 'new_status' => 'Rejected']);
+}
+add_action('wp_ajax_reject_modification_request', 'custom_lottery_reject_modification_request_callback');

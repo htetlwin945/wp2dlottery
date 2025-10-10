@@ -31,19 +31,27 @@ class Lotto_Customers_List_Table extends WP_List_Table {
     }
 
     function column_customer_name($item) {
+        $page_slug = isset($_REQUEST['page']) ? sanitize_key($_REQUEST['page']) : 'custom-lottery-customers';
         $delete_nonce = wp_create_nonce('cl_delete_customer_' . $item['id']);
-        $page = 'custom-lottery-customers';
 
-        $actions = [
-            'edit' => sprintf('<a href="?page=%s&action=%s&customer_id=%s">Edit</a>', $page, 'edit', $item['id']),
-            'delete' => sprintf(
-                '<a href="?page=%s&action=%s&customer_id=%s&_wpnonce=%s" onclick="return confirm(\'Are you sure you want to delete this customer? This cannot be undone.\')">Delete</a>',
-                $page,
-                'delete',
-                $item['id'],
-                $delete_nonce
-            ),
-        ];
+        $actions = [];
+        $current_user = wp_get_current_user();
+        $is_agent = in_array('commission_agent', (array) $current_user->roles);
+
+        // Show actions only if the user is an admin or if it's an agent on their own customers page.
+        if (current_user_can('manage_options') || $is_agent) {
+             $actions = [
+                'edit' => sprintf('<a href="?page=%s&action=%s&customer_id=%s">Edit</a>', esc_attr($page_slug), 'edit', $item['id']),
+                'delete' => sprintf(
+                    '<a href="?page=%s&action=%s&customer_id=%s&_wpnonce=%s" onclick="return confirm(\'Are you sure you want to delete this customer? This cannot be undone.\')">Delete</a>',
+                    esc_attr($page_slug),
+                    'delete',
+                    $item['id'],
+                    $delete_nonce
+                ),
+            ];
+        }
+
         return sprintf('%1$s %2$s', esc_html($item['customer_name']), $this->row_actions($actions));
     }
 
