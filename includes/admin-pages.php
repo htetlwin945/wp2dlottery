@@ -75,8 +75,8 @@ function custom_lottery_admin_menu() {
     } else {
         // Original Menu for Admins, Managers, and other roles
         $dashboard_hook = add_menu_page(
-            __('Lottery', 'custom-lottery'),
-            __('Lottery', 'custom-lottery'),
+            __('Dashboard', 'custom-lottery'), // Page Title
+            __('Lottery', 'custom-lottery'),   // Menu Title
             'manage_options',
             'custom-lottery-dashboard',
             'custom_lottery_dashboard_page_callback',
@@ -93,14 +93,6 @@ function custom_lottery_admin_menu() {
             'custom_lottery_mod_requests_page_callback'
         );
 
-        add_submenu_page(
-            'custom-lottery-dashboard',
-            __('Dashboard', 'custom-lottery'),
-            __('Dashboard', 'custom-lottery'),
-            'manage_options',
-            'custom-lottery-dashboard',
-            'custom_lottery_dashboard_page_callback'
-        );
 
         add_submenu_page(
             'custom-lottery-dashboard',
