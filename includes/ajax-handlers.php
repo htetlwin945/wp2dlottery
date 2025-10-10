@@ -76,10 +76,16 @@ add_action('wp_ajax_get_dashboard_data', 'custom_lottery_get_dashboard_data_call
  * AJAX handler for searching customers by phone number.
  */
 function custom_lottery_search_customers_callback() {
+    if ( ! current_user_can( 'enter_lottery_numbers' ) ) {
+        wp_send_json_error( 'Permission denied.' );
+        return;
+    }
+    // Nonce is checked in the form script, but let's re-verify. The nonce name is 'lottery_entry_nonce' in the form.
     check_ajax_referer('lottery_entry_action', 'nonce');
 
     global $wpdb;
     $table_customers = $wpdb->prefix . 'lotto_customers';
+    $table_agents = $wpdb->prefix . 'lotto_agents';
 
     $term = isset($_REQUEST['term']) ? sanitize_text_field($_REQUEST['term']) : '';
 
@@ -87,18 +93,36 @@ function custom_lottery_search_customers_callback() {
         wp_send_json([]);
     }
 
-    $results = $wpdb->get_results($wpdb->prepare(
-        "SELECT customer_name, phone FROM $table_customers WHERE phone LIKE %s LIMIT 10",
-        '%' . $wpdb->esc_like($term) . '%'
-    ));
+    $current_user = wp_get_current_user();
+    $query = "SELECT customer_name, phone FROM $table_customers WHERE phone LIKE %s";
+    $params = ['%' . $wpdb->esc_like($term) . '%'];
+
+    // If the user is a commission agent and not an admin, filter by their agent_id
+    if (in_array('commission_agent', (array) $current_user->roles) && !current_user_can('manage_options')) {
+        $agent_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_agents WHERE user_id = %d", $current_user->ID));
+        if ($agent_id) {
+            $query .= " AND agent_id = %d";
+            $params[] = $agent_id;
+        } else {
+            // If user is an agent but has no agent record, return no results.
+            wp_send_json([]);
+            return;
+        }
+    }
+
+    $query .= " LIMIT 10";
+
+    $results = $wpdb->get_results($wpdb->prepare($query, $params));
 
     $suggestions = [];
-    foreach ($results as $result) {
-        $suggestions[] = [
-            'label' => $result->customer_name . ' (' . $result->phone . ')',
-            'value' => $result->phone,
-            'name'  => $result->customer_name
-        ];
+    if ($results) {
+        foreach ($results as $result) {
+            $suggestions[] = [
+                'label' => $result->customer_name . ' (' . $result->phone . ')',
+                'value' => $result->phone,
+                'name'  => $result->customer_name
+            ];
+        }
     }
 
     wp_send_json($suggestions);
@@ -110,6 +134,10 @@ add_action('wp_ajax_search_customers', 'custom_lottery_search_customers_callback
  * AJAX handler for submitting a batch of lottery entries.
  */
 function custom_lottery_submit_entries_callback() {
+    if ( ! current_user_can( 'enter_lottery_numbers' ) ) {
+        wp_send_json_error( 'Permission denied.' );
+        return;
+    }
     check_ajax_referer('lottery_entry_action', 'nonce');
 
     global $wpdb;

@@ -63,25 +63,30 @@ function custom_lottery_enqueue_scripts($hook) {
         return;
     }
 
-    // For pages with the lottery entry form (Lottery Entry & All Entries)
-    if ($hook === 'lottery_page_custom-lottery-entry' || strpos($hook, 'custom-lottery-all-entries') !== false) {
+    // Check if we are on a page that needs the lottery entry form functionality.
+    // This includes the dedicated entry page, the admin's 'All Entries' page, and the agent's 'My Entries' page.
+    $needs_entry_form = strpos($hook, 'custom-lottery-entry') !== false ||
+                        strpos($hook, 'custom-lottery-all-entries') !== false ||
+                        strpos($hook, 'custom-lottery-agent-entries') !== false;
+
+    if ($needs_entry_form) {
         wp_enqueue_style('jquery-ui-css', 'https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/themes/smoothness/jquery-ui.css');
         wp_enqueue_script(
             'custom-lottery-entry',
             CUSTOM_LOTTERY_PLUGIN_URL . 'js/lottery-entry.js',
             ['jquery', 'jquery-ui-autocomplete'],
-            '1.2.0',
+            CUSTOM_LOTTERY_VERSION, // Use plugin version for cache busting
             true
         );
     }
 
-    // For the All Entries page (admin) and My Entries page (agent)
+    // For the All Entries page (admin) and My Entries page (agent), which have the list table and popup.
     if (strpos($hook, 'custom-lottery-all-entries') !== false || strpos($hook, 'custom-lottery-agent-entries') !== false) {
         wp_enqueue_script(
             'custom-lottery-all-entries',
             CUSTOM_LOTTERY_PLUGIN_URL . 'js/all-entries.js',
-            ['jquery', 'jquery-ui-dialog', 'custom-lottery-entry'],
-            '1.1.0',
+            ['jquery', 'jquery-ui-dialog', 'custom-lottery-entry'], // Dependency is now correctly loaded
+            CUSTOM_LOTTERY_VERSION,
             true
         );
     }
