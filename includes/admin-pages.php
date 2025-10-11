@@ -305,7 +305,6 @@ function custom_lottery_agent_payouts_page_callback() {
 
 
 /**
-/**
  * Enqueue scripts and styles for the admin pages.
  */
 function custom_lottery_admin_enqueue_scripts($hook) {
@@ -423,6 +422,8 @@ function custom_lottery_admin_enqueue_scripts($hook) {
     }
 }
 add_action('admin_enqueue_scripts', 'custom_lottery_admin_enqueue_scripts');
+
+/**
  * Callback for the Agent Dashboard page.
  */
 function custom_lottery_agent_dashboard_page_callback() {
