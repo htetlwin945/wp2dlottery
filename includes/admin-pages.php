@@ -333,12 +333,22 @@ function custom_lottery_agents_page_callback() {
         $per_number_limit = sanitize_text_field($_POST['per_number_limit']);
         $status = sanitize_text_field($_POST['status']);
 
+        // Handle custom session times
+        $morning_open = sanitize_text_field($_POST['morning_open']);
+        $morning_close = sanitize_text_field($_POST['morning_close']);
+        $evening_open = sanitize_text_field($_POST['evening_open']);
+        $evening_close = sanitize_text_field($_POST['evening_close']);
+
         $data = [
             'user_id' => $user_id,
             'agent_type' => $agent_type,
             'commission_rate' => ($agent_type === 'commission') ? $commission_rate : 0,
             'per_number_limit' => ($agent_type === 'commission') ? $per_number_limit : 0,
             'status' => $status,
+            'morning_open' => !empty($morning_open) ? $morning_open : null,
+            'morning_close' => !empty($morning_close) ? $morning_close : null,
+            'evening_open' => !empty($evening_open) ? $evening_open : null,
+            'evening_close' => !empty($evening_close) ? $evening_close : null,
         ];
 
         if ($agent_id > 0) {
@@ -420,6 +430,22 @@ function custom_lottery_agents_page_callback() {
                      <tr class="commission-only-row">
                         <th scope="row"><label for="per_number_limit"><?php esc_html_e('Per-Number Limit Amount', 'custom-lottery'); ?></label></th>
                         <td><input type="number" id="per_number_limit" name="per_number_limit" value="<?php echo $agent ? esc_attr($agent->per_number_limit) : '0.00'; ?>" step="1" min="0"></td>
+                    </tr>
+                    <tr class="commission-only-row">
+                        <th scope="row"><label for="morning_open"><?php esc_html_e('Morning Open Time', 'custom-lottery'); ?></label></th>
+                        <td><input type="time" id="morning_open" name="morning_open" value="<?php echo $agent ? esc_attr($agent->morning_open) : ''; ?>"><p class="description"><?php esc_html_e('Leave blank to use default time.', 'custom-lottery'); ?></p></td>
+                    </tr>
+                    <tr class="commission-only-row">
+                        <th scope="row"><label for="morning_close"><?php esc_html_e('Morning Close Time', 'custom-lottery'); ?></label></th>
+                        <td><input type="time" id="morning_close" name="morning_close" value="<?php echo $agent ? esc_attr($agent->morning_close) : ''; ?>"><p class="description"><?php esc_html_e('Leave blank to use default time.', 'custom-lottery'); ?></p></td>
+                    </tr>
+                    <tr class="commission-only-row">
+                        <th scope="row"><label for="evening_open"><?php esc_html_e('Evening Open Time', 'custom-lottery'); ?></label></th>
+                        <td><input type="time" id="evening_open" name="evening_open" value="<?php echo $agent ? esc_attr($agent->evening_open) : ''; ?>"><p class="description"><?php esc_html_e('Leave blank to use default time.', 'custom-lottery'); ?></p></td>
+                    </tr>
+                    <tr class="commission-only-row">
+                        <th scope="row"><label for="evening_close"><?php esc_html_e('Evening Close Time', 'custom-lottery'); ?></label></th>
+                        <td><input type="time" id="evening_close" name="evening_close" value="<?php echo $agent ? esc_attr($agent->evening_close) : ''; ?>"><p class="description"><?php esc_html_e('Leave blank to use default time.', 'custom-lottery'); ?></p></td>
                     </tr>
                     <tr>
                         <th scope="row"><label for="status"><?php esc_html_e('Status', 'custom-lottery'); ?></label></th>

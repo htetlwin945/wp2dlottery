@@ -148,10 +148,61 @@ function custom_lottery_submit_entries_callback() {
     $timezone = new DateTimeZone('Asia/Yangon');
     $current_datetime = new DateTime('now', $timezone);
     $current_date = $current_datetime->format('Y-m-d');
+    $draw_session = sanitize_text_field($_POST['draw_session']);
+
+    // Advanced time-based entry restriction logic
+    $current_user = wp_get_current_user();
+
+    // Start with global default session times.
+    $session_times = custom_lottery_get_session_times();
+
+    // If the user is an agent, check for custom overrides.
+    if (in_array('commission_agent', (array) $current_user->roles)) {
+        $agent = $wpdb->get_row($wpdb->prepare("SELECT morning_open, morning_close, evening_open, evening_close FROM $table_agents WHERE user_id = %d", $current_user->ID));
+        if ($agent) {
+            // Override global times with agent-specific times, only if they are set.
+            if (!empty($agent->morning_open)) {
+                $session_times['morning_open'] = $agent->morning_open;
+            }
+            if (!empty($agent->morning_close)) {
+                $session_times['morning_close'] = $agent->morning_close;
+            }
+            if (!empty($agent->evening_open)) {
+                $session_times['evening_open'] = $agent->evening_open;
+            }
+            if (!empty($agent->evening_close)) {
+                $session_times['evening_close'] = $agent->evening_close;
+            }
+        }
+    }
+
+    // Determine which session window to use
+    if ($draw_session === '12:01 PM') {
+        $open_time_str = $session_times['morning_open'];
+        $close_time_str = $session_times['morning_close'];
+    } else { // 4:30 PM
+        $open_time_str = $session_times['evening_open'];
+        $close_time_str = $session_times['evening_close'];
+    }
+
+    // Create DateTime objects for comparison
+    try {
+        $session_open_time = new DateTime($current_date . ' ' . $open_time_str, $timezone);
+        $session_close_time = new DateTime($current_date . ' ' . $close_time_str, $timezone);
+
+        if ($current_datetime < $session_open_time || $current_datetime > $session_close_time) {
+            wp_send_json_error( 'The entry session for ' . $draw_session . ' is currently closed.' );
+            return;
+        }
+    } catch (Exception $e) {
+        // Handle potential DateTime creation errors if times are invalid
+        wp_send_json_error( 'Invalid session time configuration.' );
+        return;
+    }
+    // End of advanced time-based entry restriction logic
 
     // Get agent_id if the current user is a commission agent
     $agent_id = null;
-    $current_user = wp_get_current_user();
     if (in_array('commission_agent', (array) $current_user->roles)) {
         $agent_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_agents WHERE user_id = %d", $current_user->ID));
     }
@@ -159,7 +210,6 @@ function custom_lottery_submit_entries_callback() {
     // Get customer and session data
     $customer_name = sanitize_text_field($_POST['customer_name']);
     $phone = sanitize_text_field($_POST['phone']);
-    $draw_session = sanitize_text_field($_POST['draw_session']);
 
     // Get and decode the entries JSON
     $entries_json = stripslashes($_POST['entries']);

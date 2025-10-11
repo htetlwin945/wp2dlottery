@@ -4,7 +4,7 @@ Donate link: https://example.com/
 Tags: lottery, 2-digit
 Requires at least: 5.0
 Tested up to: 6.0
-Stable tag: 1.4.0
+Stable tag: 1.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -33,6 +33,9 @@ Once activated, you can access all features through the "Lottery" menu in the Wo
 3. The settings page.
 
 == Changelog ==
+
+= 1.5.0 =
+* Feature: Implement an advanced "Time-Based Entry Restriction" feature. Administrators can now set custom entry session times (opening and closing) for each individual Commission Agent. If no custom times are set for an agent, the system uses the default session times from the main plugin settings as a fallback.
 
 = 1.4.0 =
 * Refactor: Reworked the "Request Modification" feature into a direct edit proposal system. Agents can now propose specific changes to an entry's number and amount, which an admin can approve or reject. Upon approval, the original entry is automatically updated.

@@ -89,6 +89,10 @@ function activate_custom_lottery_plugin() {
         commission_rate decimal(5, 2) DEFAULT 0.00,
         per_number_limit decimal(10, 2) DEFAULT 0.00,
         status varchar(20) DEFAULT 'active' NOT NULL, -- 'active' or 'inactive'
+        morning_open TIME NULL,
+        morning_close TIME NULL,
+        evening_open TIME NULL,
+        evening_close TIME NULL,
         PRIMARY KEY  (id),
         UNIQUE KEY user_id (user_id)
     ) $charset_collate;";
