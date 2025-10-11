@@ -94,6 +94,7 @@ function activate_custom_lottery_plugin() {
         evening_open TIME NULL,
         evening_close TIME NULL,
         balance decimal(10, 2) DEFAULT 0.00,
+        payout_threshold decimal(10, 2) NULL, -- Agent-specific threshold, NULL means use global default
         PRIMARY KEY  (id),
         UNIQUE KEY user_id (user_id)
     ) $charset_collate;";
@@ -146,4 +147,20 @@ function activate_custom_lottery_plugin() {
             $wpdb->query("ALTER TABLE $table_name_customers ADD agent_id bigint(20) NULL");
         }
     }
+
+    // Table for payout requests from agents
+    $table_name_payout_requests = $wpdb->prefix . 'lotto_payout_requests';
+    $sql_payout_requests = "CREATE TABLE $table_name_payout_requests (
+        id bigint(20) NOT NULL AUTO_INCREMENT,
+        agent_id bigint(20) NOT NULL,
+        amount decimal(10, 2) NOT NULL,
+        status varchar(20) DEFAULT 'pending' NOT NULL, -- 'pending', 'approved', 'rejected'
+        requested_at datetime DEFAULT '0000-00-00 00:00:00' NOT NULL,
+        resolved_by bigint(20) NULL,
+        resolved_at datetime NULL,
+        notes text NULL,
+        PRIMARY KEY  (id),
+        KEY agent_id (agent_id)
+    ) $charset_collate;";
+    dbDelta( $sql_payout_requests );
 }

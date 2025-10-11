@@ -799,3 +799,128 @@ function custom_lottery_make_payout_callback() {
     }
 }
 add_action('wp_ajax_make_payout', 'custom_lottery_make_payout_callback');
+
+/**
+ * AJAX handler for an agent to request a payout.
+ */
+function custom_lottery_agent_request_payout_callback() {
+    check_ajax_referer('agent_request_payout_action', 'nonce');
+
+    if ( ! current_user_can('enter_lottery_numbers') || !in_array('commission_agent', (array) wp_get_current_user()->roles) ) {
+        wp_send_json_error(['message' => 'Permission denied.']);
+        return;
+    }
+
+    global $wpdb;
+    $table_agents = $wpdb->prefix . 'lotto_agents';
+    $table_requests = $wpdb->prefix . 'lotto_payout_requests';
+    $current_user_id = get_current_user_id();
+
+    $agent = $wpdb->get_row($wpdb->prepare("SELECT id, balance, payout_threshold FROM $table_agents WHERE user_id = %d", $current_user_id));
+
+    if (!$agent) {
+        wp_send_json_error(['message' => 'Could not verify your agent status.']);
+        return;
+    }
+
+    $amount = isset($_POST['amount']) ? (float) $_POST['amount'] : 0;
+    $notes = isset($_POST['notes']) ? sanitize_textarea_field($_POST['notes']) : '';
+
+    // Determine the payout threshold
+    $default_threshold = (float) get_option('custom_lottery_default_payout_threshold', 10000);
+    $payout_threshold = !empty($agent->payout_threshold) ? (float) $agent->payout_threshold : $default_threshold;
+
+    if (empty($amount) || $amount <= 0) {
+        wp_send_json_error(['message' => 'Invalid amount requested.']);
+        return;
+    }
+
+    if ($amount < $payout_threshold) {
+        wp_send_json_error(['message' => 'Requested amount is less than your payout threshold.']);
+        return;
+    }
+
+    if ($amount > (float) $agent->balance) {
+        wp_send_json_error(['message' => 'Requested amount exceeds your current balance.']);
+        return;
+    }
+
+    // Check for an existing pending request
+    $pending_request = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_requests WHERE agent_id = %d AND status = 'pending'", $agent->id));
+    if ($pending_request) {
+        wp_send_json_error(['message' => 'You already have a pending payout request. Please wait for an admin to review it.']);
+        return;
+    }
+
+    $inserted = $wpdb->insert($table_requests, [
+        'agent_id' => $agent->id,
+        'amount' => $amount,
+        'status' => 'pending',
+        'requested_at' => current_time('mysql'),
+        'notes' => $notes,
+    ]);
+
+    if ($inserted) {
+        wp_send_json_success(['message' => 'Payout request submitted successfully. An admin will review it shortly.']);
+    } else {
+        wp_send_json_error(['message' => 'Failed to submit your request. Please try again.']);
+    }
+}
+add_action('wp_ajax_agent_request_payout', 'custom_lottery_agent_request_payout_callback');
+
+/**
+ * AJAX handler for an admin to approve a payout request.
+ */
+function custom_lottery_approve_payout_request_callback() {
+    $request_id = isset($_POST['request_id']) ? absint($_POST['request_id']) : 0;
+    check_ajax_referer('payout_request_approve_' . $request_id, 'nonce');
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(['message' => 'Permission denied.']);
+    }
+
+    global $wpdb;
+    $table_requests = $wpdb->prefix . 'lotto_payout_requests';
+
+    $updated = $wpdb->update(
+        $table_requests,
+        ['status' => 'approved', 'resolved_by' => get_current_user_id(), 'resolved_at' => current_time('mysql')],
+        ['id' => $request_id, 'status' => 'pending']
+    );
+
+    if ($updated) {
+        wp_send_json_success(['message' => 'Request approved.']);
+    } else {
+        wp_send_json_error(['message' => 'Failed to approve request or request already processed.']);
+    }
+}
+add_action('wp_ajax_approve_payout_request', 'custom_lottery_approve_payout_request_callback');
+
+
+/**
+ * AJAX handler for an admin to reject a payout request.
+ */
+function custom_lottery_reject_payout_request_callback() {
+    $request_id = isset($_POST['request_id']) ? absint($_POST['request_id']) : 0;
+    check_ajax_referer('payout_request_reject_' . $request_id, 'nonce');
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(['message' => 'Permission denied.']);
+    }
+
+    global $wpdb;
+    $table_requests = $wpdb->prefix . 'lotto_payout_requests';
+
+    $updated = $wpdb->update(
+        $table_requests,
+        ['status' => 'rejected', 'resolved_by' => get_current_user_id(), 'resolved_at' => current_time('mysql')],
+        ['id' => $request_id, 'status' => 'pending']
+    );
+
+    if ($updated) {
+        wp_send_json_success(['message' => 'Request rejected.']);
+    } else {
+        wp_send_json_error(['message' => 'Failed to reject request or request already processed.']);
+    }
+}
+add_action('wp_ajax_reject_payout_request', 'custom_lottery_reject_payout_request_callback');

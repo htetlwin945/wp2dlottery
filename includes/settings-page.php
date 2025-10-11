@@ -11,6 +11,7 @@ function custom_lottery_register_settings() {
     register_setting('custom_lottery_settings_group', 'custom_lottery_api_url_historical');
     register_setting('custom_lottery_settings_group', 'custom_lottery_session_times');
     register_setting('custom_lottery_settings_group', 'custom_lottery_number_limit');
+    register_setting('custom_lottery_settings_group', 'custom_lottery_default_payout_threshold');
     register_setting('custom_lottery_settings_group', 'custom_lottery_enable_auto_blocking');
     register_setting('custom_lottery_settings_group', 'custom_lottery_enable_commission_agent_system');
     register_setting('custom_lottery_settings_group', 'custom_lottery_enable_cover_agent_system');
@@ -54,6 +55,11 @@ function custom_lottery_settings_page_callback() {
                  <tr valign="top">
                     <th scope="row">Default Number Limit</th>
                     <td><input type="number" name="custom_lottery_number_limit" value="<?php echo esc_attr(get_option('custom_lottery_number_limit', 5000)); ?>" /></td>
+                </tr>
+                <tr valign="top">
+                    <th scope="row">Default Payout Threshold</th>
+                    <td><input type="number" name="custom_lottery_default_payout_threshold" value="<?php echo esc_attr(get_option('custom_lottery_default_payout_threshold', 10000)); ?>" />
+                    <p class="description"><?php esc_html_e('The minimum balance an agent must have to request a payout.', 'custom-lottery'); ?></p></td>
                 </tr>
                 <tr valign="top">
                     <th scope="row">Enable Auto-Blocking</th>

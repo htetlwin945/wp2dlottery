@@ -4,7 +4,7 @@ Donate link: https://example.com/
 Tags: lottery, 2-digit
 Requires at least: 5.0
 Tested up to: 6.0
-Stable tag: 1.5.1
+Stable tag: 1.6.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -33,6 +33,12 @@ Once activated, you can access all features through the "Lottery" menu in the Wo
 3. The settings page.
 
 == Changelog ==
+
+= 1.6.0 =
+* Feature: Implement a Payout Request system for agents.
+* Feature: Agents can request a payout once their balance exceeds a configurable threshold.
+* Feature: Admins can set a global payout threshold and override it for individual agents.
+* Feature: Admins can view and manage payout requests from a new "Payout Requests" page.
 
 = 1.5.1 =
 * Feature: Enhanced the Agent Payout system. Admins can now specify a payout method (Cash, Bank Transfer, etc.) and upload proof of transfer when making a payout.
