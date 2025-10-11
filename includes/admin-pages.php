@@ -12,9 +12,23 @@ function custom_lottery_mod_requests_page_callback() {
     $mod_requests_list_table = new Lotto_Mod_Requests_List_Table();
     $mod_requests_list_table->prepare_items();
     ?>
+    <style type="text/css">
+        /* Use flexbox for the main container to position details and actions */
+        .entry-details-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        /* The action buttons are now in their own div, which we can align */
+        .details-actions {
+            flex-shrink: 0; /* Prevents the actions div from shrinking */
+            padding-left: 10px; /* Adds some space between text and buttons */
+        }
+    </style>
     <div class="wrap">
         <h1 class="wp-heading-inline"><?php echo esc_html__('Modification Requests', 'custom-lottery'); ?></h1>
-        <form method="post">
+        <form method="get">
+            <input type="hidden" name="page" value="<?php echo esc_attr($_REQUEST['page']); ?>" />
             <?php $mod_requests_list_table->display(); ?>
         </form>
     </div>
@@ -992,8 +1006,20 @@ function custom_lottery_all_entries_page_callback() {
                 <form id="modification-request-form">
                     <input type="hidden" id="mod-request-entry-id" name="entry_id">
                     <?php wp_nonce_field('request_modification_nonce', 'mod_request_nonce'); ?>
-                    <p><?php esc_html_e('Please describe the change you would like to request for this entry.', 'custom-lottery'); ?></p>
-                    <textarea id="mod-request-notes" name="request_notes" rows="4" style="width: 100%;" required></textarea>
+
+                    <p>
+                        <label for="mod-request-number"><?php esc_html_e('New Number:', 'custom-lottery'); ?></label><br>
+                        <input type="text" id="mod-request-number" name="new_number" class="small-text" maxlength="2" pattern="\d{2}" required>
+                    </p>
+                    <p>
+                        <label for="mod-request-amount"><?php esc_html_e('New Amount:', 'custom-lottery'); ?></label><br>
+                        <input type="number" id="mod-request-amount" name="new_amount" class="small-text" step="1" min="0" required>
+                    </p>
+                    <p>
+                        <label for="mod-request-notes"><?php esc_html_e('Reason for change (Notes):', 'custom-lottery'); ?></label><br>
+                        <textarea id="mod-request-notes" name="request_notes" rows="3" style="width: 100%;" required></textarea>
+                    </p>
+
                     <button type="submit" class="button button-primary" style="margin-top: 10px;"><?php esc_html_e('Submit Request', 'custom-lottery'); ?></button>
                 </form>
                  <div id="mod-request-response"></div>

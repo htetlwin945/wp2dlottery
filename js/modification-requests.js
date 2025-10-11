@@ -1,60 +1,80 @@
 jQuery(document).ready(function($) {
-    var dialog, form;
-    var entryId;
+    var modRequestPopup, form;
 
-    dialog = $("#modification-request-popup").dialog({
+    // Initialize the jQuery UI Dialog
+    modRequestPopup = $("#modification-request-popup").dialog({
         autoOpen: false,
-        height: 300,
-        width: 350,
         modal: true,
+        width: 400,
+        height: 'auto',
         close: function() {
-            form[0].reset();
-            $('#mod-request-response').empty();
+            // Reset the form and clear any response messages when the dialog is closed
+            if (form) {
+                form[0].reset();
+            }
+            $('#mod-request-response').html('');
         }
     });
 
-    form = dialog.find("form").on("submit", function(event) {
-        event.preventDefault();
+    // Find the form within the dialog
+    form = modRequestPopup.find("form");
 
-        var requestNotes = $('#mod-request-notes').val();
-        var nonce = $('#mod_request_nonce').val();
+    // Use event delegation for the "Edit" link, as the list table can be updated via AJAX
+    $('.wp-list-table').on('click', '.edit-entry-link', function(e) {
+        e.preventDefault();
 
-        if (!requestNotes) {
-            $('#mod-request-response').html('<p style="color: red;">Please enter your modification request.</p>');
-            return;
-        }
+        // Retrieve data from the link's data attributes
+        var entryId = $(this).data('entry-id');
+        var currentNumber = $(this).data('current-number');
+        var currentAmount = $(this).data('current-amount');
 
+        // Populate the form fields in the popup
+        $('#mod-request-entry-id').val(entryId);
+        $('#mod-request-number').val(currentNumber);
+        $('#mod-request-amount').val(currentAmount);
+
+        // Open the dialog
+        modRequestPopup.dialog('open');
+    });
+
+
+    // Handle the form submission
+    form.on('submit', function(e) {
+        e.preventDefault();
+
+        var responseDiv = $('#mod-request-response');
+        responseDiv.html('<p>Submitting...</p>');
+
+        // Collect all form data
+        var formData = {
+            action: 'request_entry_modification',
+            nonce: $('#mod_request_nonce').val(),
+            entry_id: $('#mod-request-entry-id').val(),
+            new_number: $('#mod-request-number').val(),
+            new_amount: $('#mod-request-amount').val(),
+            request_notes: $('#mod-request-notes').val()
+        };
+
+        // Perform the AJAX request
         $.ajax({
             url: ajaxurl,
             type: 'POST',
-            data: {
-                action: 'request_entry_modification',
-                entry_id: entryId,
-                request_notes: requestNotes,
-                nonce: nonce
-            },
+            data: formData,
             success: function(response) {
                 if (response.success) {
-                    $('#mod-request-response').html('<p style="color: green;">' + response.data + '</p>');
+                    responseDiv.html('<p style="color: green;">' + response.data + '</p>');
+                    // Close the dialog and reload the page after a short delay
                     setTimeout(function() {
-                        dialog.dialog("close");
-                        location.reload(); // Reload to show the status update
+                        modRequestPopup.dialog("close");
+                        location.reload();
                     }, 1500);
                 } else {
-                    $('#mod-request-response').html('<p style="color: red;">' + response.data + '</p>');
+                    responseDiv.html('<p style="color: red;">Error: ' + response.data + '</p>');
                 }
             },
             error: function() {
-                $('#mod-request-response').html('<p style="color: red;">An unexpected error occurred. Please try again.</p>');
+                responseDiv.html('<p style="color: red;">An unexpected error occurred. Please try again.</p>');
             }
         });
-    });
-
-    // Use event delegation for dynamically loaded content in the list table
-    $('#the-list').on('click', '.request-modification-link', function(e) {
-        e.preventDefault();
-        entryId = $(this).data('entry-id');
-        $('#mod-request-entry-id').val(entryId);
-        dialog.dialog("open");
     });
 });
