@@ -740,10 +740,29 @@ function custom_lottery_make_payout_callback() {
     $agent_id = isset($_POST['agent_id']) ? absint($_POST['agent_id']) : 0;
     $amount = isset($_POST['amount']) ? (float) $_POST['amount'] : 0;
     $notes = isset($_POST['notes']) ? sanitize_textarea_field($_POST['notes']) : '';
+    $payout_method = isset($_POST['payout_method']) ? sanitize_text_field($_POST['payout_method']) : 'Cash';
+    $attachment_url = '';
 
     if (empty($agent_id) || empty($amount) || $amount <= 0) {
         wp_send_json_error(['message' => 'Invalid agent ID or amount.']);
         return;
+    }
+
+    // Handle file upload
+    if (isset($_FILES['proof_attachment']) && $_FILES['proof_attachment']['error'] === UPLOAD_ERR_OK) {
+        if ( ! function_exists( 'wp_handle_upload' ) ) {
+            require_once( ABSPATH . 'wp-admin/includes/file.php' );
+        }
+        $uploaded_file = $_FILES['proof_attachment'];
+        $upload_overrides = ['test_form' => false];
+        $movefile = wp_handle_upload($uploaded_file, $upload_overrides);
+
+        if ($movefile && !isset($movefile['error'])) {
+            $attachment_url = $movefile['url'];
+        } else {
+            wp_send_json_error(['message' => 'File upload error: ' . $movefile['error']]);
+            return;
+        }
     }
 
     // Start a transaction
@@ -756,6 +775,8 @@ function custom_lottery_make_payout_callback() {
         'amount' => -$amount, // Store payout as a negative value
         'notes' => $notes,
         'timestamp' => current_time('mysql'),
+        'payout_method' => $payout_method,
+        'proof_attachment' => $attachment_url,
     ]);
 
     // Subtract the amount from the agent's balance

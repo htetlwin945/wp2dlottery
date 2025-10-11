@@ -19,6 +19,8 @@ class Lotto_Payouts_List_Table extends WP_List_Table {
             'agent_name' => __( 'Agent Name', 'custom-lottery' ),
             'type'       => __( 'Type', 'custom-lottery' ),
             'amount'     => __( 'Amount (Kyat)', 'custom-lottery' ),
+            'payout_method' => __( 'Payout Method', 'custom-lottery' ),
+            'proof'      => __( 'Proof', 'custom-lottery' ),
             'notes'      => __( 'Notes', 'custom-lottery' ),
             'timestamp'  => __( 'Date', 'custom-lottery' ),
         ];
@@ -82,6 +84,7 @@ class Lotto_Payouts_List_Table extends WP_List_Table {
             'agent_name' => array('agent_name', false),
             'type'    => array('type', false),
             'amount'  => array('amount', false),
+            'payout_method' => array('payout_method', false),
             'timestamp' => array('timestamp', true),
         );
         return $sortable_columns;
@@ -101,6 +104,13 @@ class Lotto_Payouts_List_Table extends WP_List_Table {
                 } else {
                      return '<span style="color: green;">' . number_format($amount, 2) . '</span>';
                 }
+            case 'payout_method':
+                return $item['type'] === 'payout' ? esc_html($item['payout_method']) : 'N/A';
+            case 'proof':
+                if ($item['type'] === 'payout' && !empty($item['proof_attachment'])) {
+                    return sprintf('<a href="%s" target="_blank" rel="noopener noreferrer">%s</a>', esc_url($item['proof_attachment']), __('View Proof', 'custom-lottery'));
+                }
+                return 'N/A';
             case 'notes':
                 return esc_html($item['notes']);
             case 'timestamp':
