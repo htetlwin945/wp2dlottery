@@ -5,6 +5,9 @@ if ( ! defined( 'WPINC' ) ) {
     die;
 }
 
+// Ensure utility functions are available
+require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/utils.php' );
+
 /**
  * AJAX handler for getting dashboard chart data.
  */
@@ -76,16 +79,10 @@ add_action('wp_ajax_get_dashboard_data', 'custom_lottery_get_dashboard_data_call
  * AJAX handler for searching customers by phone number.
  */
 function custom_lottery_search_customers_callback() {
-    if ( ! current_user_can( 'enter_lottery_numbers' ) ) {
-        wp_send_json_error( 'Permission denied.' );
-        return;
-    }
-    // Nonce is checked in the form script, but let's re-verify. The nonce name is 'lottery_entry_nonce' in the form.
     check_ajax_referer('lottery_entry_action', 'nonce');
 
     global $wpdb;
     $table_customers = $wpdb->prefix . 'lotto_customers';
-    $table_agents = $wpdb->prefix . 'lotto_agents';
 
     $term = isset($_REQUEST['term']) ? sanitize_text_field($_REQUEST['term']) : '';
 
@@ -93,36 +90,18 @@ function custom_lottery_search_customers_callback() {
         wp_send_json([]);
     }
 
-    $current_user = wp_get_current_user();
-    $query = "SELECT customer_name, phone FROM $table_customers WHERE phone LIKE %s";
-    $params = ['%' . $wpdb->esc_like($term) . '%'];
-
-    // If the user is a commission agent and not an admin, filter by their agent_id
-    if (in_array('commission_agent', (array) $current_user->roles) && !current_user_can('manage_options')) {
-        $agent_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_agents WHERE user_id = %d", $current_user->ID));
-        if ($agent_id) {
-            $query .= " AND agent_id = %d";
-            $params[] = $agent_id;
-        } else {
-            // If user is an agent but has no agent record, return no results.
-            wp_send_json([]);
-            return;
-        }
-    }
-
-    $query .= " LIMIT 10";
-
-    $results = $wpdb->get_results($wpdb->prepare($query, $params));
+    $results = $wpdb->get_results($wpdb->prepare(
+        "SELECT customer_name, phone FROM $table_customers WHERE phone LIKE %s LIMIT 10",
+        '%' . $wpdb->esc_like($term) . '%'
+    ));
 
     $suggestions = [];
-    if ($results) {
-        foreach ($results as $result) {
-            $suggestions[] = [
-                'label' => $result->customer_name . ' (' . $result->phone . ')',
-                'value' => $result->phone,
-                'name'  => $result->customer_name
-            ];
-        }
+    foreach ($results as $result) {
+        $suggestions[] = [
+            'label' => $result->customer_name . ' (' . $result->phone . ')',
+            'value' => $result->phone,
+            'name'  => $result->customer_name
+        ];
     }
 
     wp_send_json($suggestions);
@@ -134,11 +113,26 @@ add_action('wp_ajax_search_customers', 'custom_lottery_search_customers_callback
  * AJAX handler for submitting a batch of lottery entries.
  */
 function custom_lottery_submit_entries_callback() {
-    if ( ! current_user_can( 'enter_lottery_numbers' ) ) {
-        wp_send_json_error( 'Permission denied.' );
+    check_ajax_referer('lottery_entry_action', 'nonce');
+
+    // --- Time-Based Entry Restriction ---
+    $timezone = new DateTimeZone('Asia/Yangon');
+    $current_time = new DateTime('now', $timezone);
+    $submitted_session = sanitize_text_field($_POST['draw_session']);
+    $session_times = custom_lottery_get_session_times();
+
+    $session_start_str = ($submitted_session === '12:01 PM') ? $session_times['morning_open'] : $session_times['evening_open'];
+    $session_end_str = ($submitted_session === '12:01 PM') ? $session_times['morning_close'] : $session_times['evening_close'];
+
+    // Create full DateTime objects for today to ensure accurate comparison
+    $session_start_time = new DateTime(date('Y-m-d') . ' ' . $session_start_str, $timezone);
+    $session_end_time   = new DateTime(date('Y-m-d') . ' ' . $session_end_str, $timezone);
+
+    if ($current_time < $session_start_time || $current_time > $session_end_time) {
+        wp_send_json_error(sprintf('Entries for the %s session are currently closed.', $submitted_session));
         return;
     }
-    check_ajax_referer('lottery_entry_action', 'nonce');
+    // --- End Time-Based Entry Restriction ---
 
     global $wpdb;
     $table_entries = $wpdb->prefix . 'lotto_entries';
@@ -465,11 +459,9 @@ function custom_lottery_request_entry_modification_callback() {
 
     $entry_id = isset($_POST['entry_id']) ? absint($_POST['entry_id']) : 0;
     $request_notes = isset($_POST['request_notes']) ? sanitize_textarea_field($_POST['request_notes']) : '';
-    $new_number = isset($_POST['new_number']) ? sanitize_text_field($_POST['new_number']) : null;
-    $new_amount = isset($_POST['new_amount']) ? sanitize_text_field($_POST['new_amount']) : null;
 
-    if (empty($entry_id) || empty($request_notes) || !preg_match('/^\d{2}$/', $new_number) || !is_numeric($new_amount)) {
-        wp_send_json_error('Invalid data provided. Please fill all fields correctly.');
+    if (empty($entry_id) || empty($request_notes)) {
+        wp_send_json_error('Invalid data provided.');
         return;
     }
 
@@ -499,22 +491,16 @@ function custom_lottery_request_entry_modification_callback() {
 
     // Insert the modification request
     $inserted = $wpdb->insert($table_requests, [
-        'entry_id'           => $entry_id,
-        'agent_id'           => $agent_id,
-        'request_notes'      => $request_notes,
-        'new_lottery_number' => $new_number,
-        'new_amount'         => $new_amount,
-        'status'             => 'pending',
-        'requested_at'       => current_time('mysql'),
+        'entry_id'      => $entry_id,
+        'agent_id'      => $agent_id,
+        'request_notes' => $request_notes,
+        'status'        => 'pending',
+        'requested_at'  => current_time('mysql'),
     ]);
 
     if ($inserted) {
-        // Update the entry to flag that it has a pending modification request
-        $wpdb->update(
-            $table_entries,
-            ['has_mod_request' => 1, 'mod_request_status' => 'pending'],
-            ['id' => $entry_id]
-        );
+        // Update the entry to flag that it has a modification request
+        $wpdb->update($table_entries, ['has_mod_request' => 1], ['id' => $entry_id]);
         wp_send_json_success('Modification request submitted successfully.');
     } else {
         wp_send_json_error('Failed to save the modification request. Please try again.');
@@ -548,33 +534,17 @@ function custom_lottery_approve_modification_request_callback() {
         wp_send_json_error('Request not found.');
     }
 
-    // Update the original entry with the new data from the request
-    if (isset($request->new_lottery_number) && isset($request->new_amount)) {
-        $wpdb->update(
-            $table_entries,
-            [
-                'lottery_number' => $request->new_lottery_number,
-                'amount'         => $request->new_amount,
-            ],
-            ['id' => $request->entry_id]
-        );
-    }
-
-    // Update request status to 'approved'
-    $wpdb->update(
-        $table_requests,
+    // Update request status
+    $wpdb->update($table_requests,
         ['status' => 'approved', 'resolved_by' => get_current_user_id(), 'resolved_at' => current_time('mysql')],
         ['id' => $request_id]
     );
 
-    // Clear the modification request flag and set the status to 'approved'
-    $wpdb->update(
-        $table_entries,
-        ['has_mod_request' => 0, 'mod_request_status' => 'approved'],
-        ['id' => $request->entry_id]
-    );
+    // Note: This action only approves the *request*. The admin must still manually edit the entry.
+    // We will clear the flag to remove it from the pending queue.
+    $wpdb->update($table_entries, ['has_mod_request' => 0], ['id' => $request->entry_id]);
 
-    wp_send_json_success(['message' => 'Request approved and entry updated.', 'new_status' => 'Approved']);
+    wp_send_json_success(['message' => 'Request approved.', 'new_status' => 'Approved']);
 }
 add_action('wp_ajax_approve_modification_request', 'custom_lottery_approve_modification_request_callback');
 
@@ -610,12 +580,8 @@ function custom_lottery_reject_modification_request_callback() {
         ['id' => $request_id]
     );
 
-    // Clear the flag on the entry and set the status to 'rejected'
-    $wpdb->update(
-        $table_entries,
-        ['has_mod_request' => 0, 'mod_request_status' => 'rejected'],
-        ['id' => $request->entry_id]
-    );
+    // Clear the flag on the entry
+    $wpdb->update($table_entries, ['has_mod_request' => 0], ['id' => $request->entry_id]);
 
     wp_send_json_success(['message' => 'Request rejected.', 'new_status' => 'Rejected']);
 }
