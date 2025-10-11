@@ -177,7 +177,4 @@ class Lotto_Mod_Requests_List_Table extends WP_List_Table {
         $query_params = array_merge($params, [$per_page, $offset]);
         $this->items = $wpdb->get_results($wpdb->prepare($query, $query_params), ARRAY_A);
     }
-
-        $this->items = $wpdb->get_results($query, ARRAY_A);
-    }
 }
