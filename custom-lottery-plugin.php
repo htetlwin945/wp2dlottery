@@ -27,6 +27,7 @@ require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/class-lotto-entries-list-ta
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/class-lotto-customers-list-table.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/class-lotto-mod-requests-list-table.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/class-lotto-commission-list-table.php' );
+require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/class-lotto-agent-wallet-history-list-table.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/db-setup.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/db-schema-mods.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/admin-pages.php' );

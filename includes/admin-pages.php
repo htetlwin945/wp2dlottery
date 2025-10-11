@@ -94,6 +94,15 @@ function custom_lottery_admin_menu() {
             'custom_lottery_agent_commission_page_callback'
         );
 
+        add_submenu_page(
+            'custom-lottery-agent-dashboard',
+            __('My Wallet', 'custom-lottery'),
+            __('My Wallet', 'custom-lottery'),
+            'enter_lottery_numbers',
+            'custom-lottery-agent-wallet',
+            'custom_lottery_agent_wallet_page_callback'
+        );
+
     } else {
         // Original Menu for Admins, Managers, and other roles
         $dashboard_hook = add_menu_page(
@@ -320,6 +329,52 @@ function custom_lottery_agent_payouts_page_callback() {
             <button type="submit" class="button button-primary"><?php esc_html_e('Record Payout', 'custom-lottery'); ?></button>
         </form>
         <div id="modal-response" style="margin-top:10px;"></div>
+    </div>
+    <?php
+}
+
+/**
+ * Callback for the Agent Wallet page.
+ */
+function custom_lottery_agent_wallet_page_callback() {
+    global $wpdb;
+    $current_user_id = get_current_user_id();
+    $table_agents = $wpdb->prefix . 'lotto_agents';
+
+    // Fetch the agent's current balance
+    $current_balance = $wpdb->get_var($wpdb->prepare("SELECT balance FROM $table_agents WHERE user_id = %d", $current_user_id));
+    ?>
+    <div class="wrap">
+        <h1 class="wp-heading-inline"><?php echo esc_html__('My Wallet', 'custom-lottery'); ?></h1>
+
+        <div class="postbox" style="margin-top: 20px;">
+            <h2 class="hndle"><span><?php esc_html_e('Current Balance', 'custom-lottery'); ?></span></h2>
+            <div class="inside">
+                <p style="font-size: 24px; margin: 0; color: blue;"><?php echo number_format($current_balance ?? 0, 2); ?> Kyat</p>
+            </div>
+        </div>
+
+        <h2 style="margin-top: 40px;"><?php echo esc_html__('Payout History', 'custom-lottery'); ?></h2>
+        <p><?php echo esc_html__('Here you can see the history of all payouts you have received.', 'custom-lottery'); ?></p>
+
+        <form method="get">
+            <input type="hidden" name="page" value="<?php echo esc_attr($_REQUEST['page']); ?>" />
+            <?php
+            $start_date = isset($_GET['start_date']) ? sanitize_text_field($_GET['start_date']) : '';
+            $end_date = isset($_GET['end_date']) ? sanitize_text_field($_GET['end_date']) : '';
+            ?>
+            <label for="start-date"><?php echo esc_html__('Start Date:', 'custom-lottery'); ?></label>
+            <input type="date" id="start-date" name="start_date" value="<?php echo esc_attr($start_date); ?>">
+            <label for="end-date"><?php echo esc_html__('End Date:', 'custom-lottery'); ?></label>
+            <input type="date" id="end-date" name="end_date" value="<?php echo esc_attr($end_date); ?>">
+            <input type="submit" class="button" value="<?php esc_attr_e('Filter', 'custom-lottery'); ?>">
+        </form>
+
+        <?php
+        $wallet_history_table = new Lotto_Agent_Wallet_History_List_Table();
+        $wallet_history_table->prepare_items();
+        $wallet_history_table->display();
+        ?>
     </div>
     <?php
 }
