@@ -85,6 +85,14 @@ function custom_lottery_admin_menu() {
             'custom-lottery-agent-customers',
             'custom_lottery_customers_page_callback'
         );
+         add_submenu_page(
+            'custom-lottery-agent-dashboard',
+            __('My Commission', 'custom-lottery'),
+            __('My Commission', 'custom-lottery'),
+            'enter_lottery_numbers',
+            'custom-lottery-agent-commission',
+            'custom_lottery_agent_commission_page_callback'
+        );
 
     } else {
         // Original Menu for Admins, Managers, and other roles
@@ -284,13 +292,26 @@ function custom_lottery_agent_payouts_page_callback() {
 
     <!-- Payout Modal -->
     <div id="payout-modal" title="Make a Payout" style="display:none;">
-        <form id="payout-form">
+        <form id="payout-form" enctype="multipart/form-data">
             <p><strong>Agent:</strong> <span id="modal-agent-name"></span></p>
             <input type="hidden" id="modal-agent-id" name="agent_id">
             <?php wp_nonce_field('make_payout_nonce_action', 'make_payout_nonce'); ?>
             <p>
                 <label for="payout-amount"><?php esc_html_e('Payout Amount (Kyat)', 'custom-lottery'); ?></label>
                 <input type="number" id="payout-amount" name="amount" class="widefat" step="0.01" min="0" required>
+            </p>
+            <p>
+                <label for="payout-method"><?php esc_html_e('Payout Method', 'custom-lottery'); ?></label>
+                <select id="payout-method" name="payout_method" class="widefat" required>
+                    <option value="Cash"><?php esc_html_e('Cash', 'custom-lottery'); ?></option>
+                    <option value="Bank Transfer"><?php esc_html_e('Bank Transfer', 'custom-lottery'); ?></option>
+                    <option value="E-Wallet"><?php esc_html_e('E-Wallet', 'custom-lottery'); ?></option>
+                    <option value="Other"><?php esc_html_e('Other', 'custom-lottery'); ?></option>
+                </select>
+            </p>
+             <p>
+                <label for="proof-attachment"><?php esc_html_e('Proof of Transfer', 'custom-lottery'); ?></label>
+                <input type="file" id="proof-attachment" name="proof_attachment" class="widefat" accept="image/*,application/pdf">
             </p>
             <p>
                 <label for="payout-notes"><?php esc_html_e('Notes (Optional)', 'custom-lottery'); ?></label>
@@ -395,25 +416,33 @@ function custom_lottery_admin_enqueue_scripts($hook) {
                     e.preventDefault();
                     \$('#modal-response').text('Processing...').css('color', 'black');
 
-                    var data = {
-                        action: 'make_payout',
-                        nonce: \$('#make_payout_nonce').val(),
-                        agent_id: \$('#modal-agent-id').val(),
-                        amount: \$('#payout-amount').val(),
-                        notes: \$('#payout-notes').val()
-                    };
+                    var formData = new FormData(this);
+                    formData.append('action', 'make_payout');
+                    formData.append('nonce', \$('#make_payout_nonce').val());
+                    var agentId = \$('#modal-agent-id').val();
 
-                    \$.post(ajaxurl, data, function(response) {
-                        if (response.success) {
-                            \$('#modal-response').text(response.data.message).css('color', 'green');
-                            // Update the balance in the table
-                            var newBalance = parseFloat(response.data.new_balance).toFixed(2);
-                            \$('#agent-row-' + data.agent_id).find('.agent-balance').text(newBalance.replace(/\\B(?=(\\d{3})+(?!\\d))/g, ','));
-                            setTimeout(function() {
-                                \$modal.dialog('close');
-                            }, 1500);
-                        } else {
-                            \$('#modal-response').text(response.data.message).css('color', 'red');
+                    \$.ajax({
+                        url: ajaxurl,
+                        type: 'POST',
+                        data: formData,
+                        processData: false,
+                        contentType: false,
+                        success: function(response) {
+                            if (response.success) {
+                                \$('#modal-response').text(response.data.message).css('color', 'green');
+                                // Update the balance in the table
+                                var newBalance = parseFloat(response.data.new_balance).toFixed(2);
+                                \$('#agent-row-' + agentId).find('.agent-balance').text(newBalance.replace(/\\B(?=(\\d{3})+(?!\\d))/g, ','));
+                                // Reload the page to show the updated recent transactions table
+                                setTimeout(function() {
+                                    location.reload();
+                                }, 1500);
+                            } else {
+                                \$('#modal-response').text(response.data.message).css('color', 'red');
+                            }
+                        },
+                        error: function() {
+                            \$('#modal-response').text('An error occurred during the request.').css('color', 'red');
                         }
                     });
                 });
@@ -551,6 +580,43 @@ function custom_lottery_agent_dashboard_page_callback() {
     </div>
     <?php
 }
+
+/**
+ * Callback for the Agent Commission page.
+ */
+function custom_lottery_agent_commission_page_callback() {
+    ?>
+    <div class="wrap">
+        <h1 class="wp-heading-inline"><?php echo esc_html__('My Commission History', 'custom-lottery'); ?></h1>
+        <p><?php echo esc_html__('Here you can see the history of all commissions you have earned.', 'custom-lottery'); ?></p>
+
+        <form method="get">
+            <input type="hidden" name="page" value="<?php echo esc_attr($_REQUEST['page']); ?>" />
+            <?php
+            // We will instantiate and display the list table here in the next step.
+            // For now, let's add the date filters.
+            $start_date = isset($_GET['start_date']) ? sanitize_text_field($_GET['start_date']) : '';
+            $end_date = isset($_GET['end_date']) ? sanitize_text_field($_GET['end_date']) : '';
+            ?>
+            <label for="start-date"><?php echo esc_html__('Start Date:', 'custom-lottery'); ?></label>
+            <input type="date" id="start-date" name="start_date" value="<?php echo esc_attr($start_date); ?>">
+            <label for="end-date"><?php echo esc_html__('End Date:', 'custom-lottery'); ?></label>
+            <input type="date" id="end-date" name="end_date" value="<?php echo esc_attr($end_date); ?>">
+            <input type="submit" class="button" value="<?php esc_attr_e('Filter', 'custom-lottery'); ?>">
+        </form>
+
+        <?php
+        // Create an instance of our package class...
+        $commission_list_table = new Lotto_Commission_List_Table();
+        // Fetch, prepare, sort, and filter our data...
+        $commission_list_table->prepare_items();
+        // ...and display it.
+        $commission_list_table->display();
+        ?>
+    </div>
+    <?php
+}
+
 
 /**
  * Callback for the Agents page.

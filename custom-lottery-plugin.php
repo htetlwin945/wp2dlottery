@@ -3,7 +3,7 @@
  * Plugin Name:       Custom 2-Digit Lottery
  * Plugin URI:        https://example.com/
  * Description:       A custom plugin to manage a 2-digit lottery system in WordPress.
- * Version:           1.5.0
+ * Version:           1.5.1
  * Author:            Jules
  * Author URI:        https://example.com/
  * License:           GPL v2 or later
@@ -18,7 +18,7 @@ if ( ! defined( 'WPINC' ) ) {
 }
 
 // Define plugin constants
-define( 'CUSTOM_LOTTERY_VERSION', '1.5.0' );
+define( 'CUSTOM_LOTTERY_VERSION', '1.5.1' );
 define( 'CUSTOM_LOTTERY_PLUGIN_PATH', plugin_dir_path( __FILE__ ) );
 define( 'CUSTOM_LOTTERY_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
@@ -26,6 +26,7 @@ define( 'CUSTOM_LOTTERY_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/class-lotto-entries-list-table.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/class-lotto-customers-list-table.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/class-lotto-mod-requests-list-table.php' );
+require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/class-lotto-commission-list-table.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/db-setup.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/db-schema-mods.php' );
 require_once( CUSTOM_LOTTERY_PLUGIN_PATH . 'includes/admin-pages.php' );

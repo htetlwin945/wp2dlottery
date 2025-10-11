@@ -109,6 +109,8 @@ function activate_custom_lottery_plugin() {
         related_entry_id bigint(20) NULL,
         notes text NULL,
         timestamp datetime DEFAULT '0000-00-00 00:00:00' NOT NULL,
+        payout_method VARCHAR(255) NULL,
+        proof_attachment TEXT NULL,
         PRIMARY KEY  (id)
     ) $charset_collate;";
     dbDelta( $sql_agent_transactions );

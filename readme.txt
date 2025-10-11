@@ -4,7 +4,7 @@ Donate link: https://example.com/
 Tags: lottery, 2-digit
 Requires at least: 5.0
 Tested up to: 6.0
-Stable tag: 1.5.0
+Stable tag: 1.5.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -33,6 +33,11 @@ Once activated, you can access all features through the "Lottery" menu in the Wo
 3. The settings page.
 
 == Changelog ==
+
+= 1.5.1 =
+* Feature: Enhanced the Agent Payout system. Admins can now specify a payout method (Cash, Bank Transfer, etc.) and upload proof of transfer when making a payout.
+* Feature: Added a new "My Commission" page for agents to view their commission history with date filtering.
+* Feature: Enhanced the Agent Portal. Agents can now see the payout method and a link to the proof of transfer for their own payout transactions, improving transparency.
 
 = 1.5.0 =
 * Feature: Implement an advanced "Time-Based Entry Restriction" feature. Administrators can now set custom entry session times (opening and closing) for each individual Commission Agent. If no custom times are set for an agent, the system uses the default session times from the main plugin settings as a fallback.
