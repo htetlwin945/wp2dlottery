@@ -36,10 +36,13 @@ function custom_lottery_apply_schema_mods() {
     // Add 'has_mod_request' column to lotto_entries table if it doesn't exist.
     $table_entries = $wpdb->prefix . 'lotto_entries';
     $column_name = 'has_mod_request';
+    if (empty($wpdb->get_results("SHOW COLUMNS FROM {$table_entries} LIKE '{$column_name}'"))) {
+        $wpdb->query("ALTER TABLE {$table_entries} ADD {$column_name} TINYINT(1) NOT NULL DEFAULT 0");
+    }
 
-    $row = $wpdb->get_results(  "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name = '{$table_entries}' AND column_name = '{$column_name}'"  );
-
-    if(empty($row)){
-       $wpdb->query("ALTER TABLE {$table_entries} ADD {$column_name} TINYINT(1) NOT NULL DEFAULT 0");
+    // Add 'mod_request_status' column to lotto_entries table if it doesn't exist.
+    $column_name_status = 'mod_request_status';
+    if (empty($wpdb->get_results("SHOW COLUMNS FROM {$table_entries} LIKE '{$column_name_status}'"))) {
+        $wpdb->query("ALTER TABLE {$table_entries} ADD {$column_name_status} VARCHAR(20) NULL DEFAULT NULL");
     }
 }

@@ -94,8 +94,8 @@ class Lotto_Entries_List_Table extends WP_List_Table {
                     ),
                 ];
             } else {
-                // Agent actions
-                if (empty($entry['has_mod_request'])) {
+                // Agent actions: show edit link if there is no pending request.
+                if ($entry['mod_request_status'] !== 'pending') {
                      $actions = [
                         'edit' => sprintf(
                             '<a href="#" class="edit-entry-link" data-entry-id="%d" data-current-number="%s" data-current-amount="%s">%s</a>',
@@ -114,8 +114,15 @@ class Lotto_Entries_List_Table extends WP_List_Table {
                 number_format($entry['amount'], 2)
             );
 
-            if (!empty($entry['has_mod_request'])) {
-                 $entry_display .= ' <span style="color: orange; font-weight: bold;">(' . __('Mod. Requested', 'custom-lottery') . ')</span>';
+            // Display the modification request status for the agent
+            if (!empty($entry['mod_request_status'])) {
+                if ($entry['mod_request_status'] === 'pending') {
+                    $entry_display .= ' <span style="color: orange; font-weight: bold;">(' . __('Pending Review', 'custom-lottery') . ')</span>';
+                } elseif ($entry['mod_request_status'] === 'approved') {
+                    $entry_display .= ' <span style="color: green; font-weight: bold;">(' . __('Approved', 'custom-lottery') . ')</span>';
+                } elseif ($entry['mod_request_status'] === 'rejected') {
+                    $entry_display .= ' <span style="color: red; font-weight: bold;">(' . __('Rejected', 'custom-lottery') . ')</span>';
+                }
             }
 
             if ($entry['is_winner']) {

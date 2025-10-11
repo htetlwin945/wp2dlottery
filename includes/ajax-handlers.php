@@ -509,8 +509,12 @@ function custom_lottery_request_entry_modification_callback() {
     ]);
 
     if ($inserted) {
-        // Update the entry to flag that it has a modification request
-        $wpdb->update($table_entries, ['has_mod_request' => 1], ['id' => $entry_id]);
+        // Update the entry to flag that it has a pending modification request
+        $wpdb->update(
+            $table_entries,
+            ['has_mod_request' => 1, 'mod_request_status' => 'pending'],
+            ['id' => $entry_id]
+        );
         wp_send_json_success('Modification request submitted successfully.');
     } else {
         wp_send_json_error('Failed to save the modification request. Please try again.');
@@ -563,8 +567,12 @@ function custom_lottery_approve_modification_request_callback() {
         ['id' => $request_id]
     );
 
-    // Clear the modification request flag from the entry
-    $wpdb->update($table_entries, ['has_mod_request' => 0], ['id' => $request->entry_id]);
+    // Clear the modification request flag and set the status to 'approved'
+    $wpdb->update(
+        $table_entries,
+        ['has_mod_request' => 0, 'mod_request_status' => 'approved'],
+        ['id' => $request->entry_id]
+    );
 
     wp_send_json_success(['message' => 'Request approved and entry updated.', 'new_status' => 'Approved']);
 }
@@ -602,8 +610,12 @@ function custom_lottery_reject_modification_request_callback() {
         ['id' => $request_id]
     );
 
-    // Clear the flag on the entry
-    $wpdb->update($table_entries, ['has_mod_request' => 0], ['id' => $request->entry_id]);
+    // Clear the flag on the entry and set the status to 'rejected'
+    $wpdb->update(
+        $table_entries,
+        ['has_mod_request' => 0, 'mod_request_status' => 'rejected'],
+        ['id' => $request->entry_id]
+    );
 
     wp_send_json_success(['message' => 'Request rejected.', 'new_status' => 'Rejected']);
 }

@@ -36,6 +36,38 @@ class Lotto_Mod_Requests_List_Table extends WP_List_Table {
         }
     }
 
+    protected function extra_tablenav($which) {
+        if ($which == "top") {
+            global $wpdb;
+            $table_agents = $wpdb->prefix . 'lotto_agents';
+            $agents = $wpdb->get_results("SELECT a.id, u.display_name FROM $table_agents a JOIN {$wpdb->users} u ON a.user_id = u.ID WHERE a.agent_type = 'commission' ORDER BY u.display_name ASC");
+
+            $filter_agent_id = isset($_GET['filter_agent_id']) ? absint($_GET['filter_agent_id']) : '';
+            $filter_session = isset($_GET['filter_session']) ? sanitize_text_field($_GET['filter_session']) : '';
+            $filter_date = isset($_GET['filter_date']) ? sanitize_text_field($_GET['filter_date']) : '';
+            ?>
+            <div class="alignleft actions">
+                <select name="filter_agent_id">
+                    <option value=""><?php _e('All Agents', 'custom-lottery'); ?></option>
+                    <?php foreach ($agents as $agent) : ?>
+                        <option value="<?php echo esc_attr($agent->id); ?>" <?php selected($filter_agent_id, $agent->id); ?>><?php echo esc_html($agent->display_name); ?></option>
+                    <?php endforeach; ?>
+                </select>
+
+                <select name="filter_session">
+                    <option value=""><?php _e('All Sessions', 'custom-lottery'); ?></option>
+                    <option value="12:01 PM" <?php selected($filter_session, '12:01 PM'); ?>>12:01 PM</option>
+                    <option value="4:30 PM" <?php selected($filter_session, '4:30 PM'); ?>>4:30 PM</option>
+                </select>
+
+                <input type="date" name="filter_date" value="<?php echo esc_attr($filter_date); ?>" />
+
+                <?php submit_button(__('Filter'), 'action', 'filter_action', false, ['id' => 'post-query-submit']); ?>
+            </div>
+            <?php
+        }
+    }
+
     function column_entry_details($item) {
         // Main container for flexbox layout
         $output = '<div class="entry-details-container">';
@@ -103,29 +135,48 @@ class Lotto_Mod_Requests_List_Table extends WP_List_Table {
         $current_page = $this->get_pagenum();
         $offset = ($current_page - 1) * $per_page;
 
-        $total_items = $wpdb->get_var("SELECT COUNT(id) FROM $table_requests");
+        // Filtering logic
+        $where_clauses = [];
+        $params = [];
+        if (!empty($_GET['filter_agent_id'])) {
+            $where_clauses[] = "r.agent_id = %d";
+            $params[] = absint($_GET['filter_agent_id']);
+        }
+        if (!empty($_GET['filter_session'])) {
+            $where_clauses[] = "e.draw_session = %s";
+            $params[] = sanitize_text_field($_GET['filter_session']);
+        }
+        if (!empty($_GET['filter_date'])) {
+            $date = sanitize_text_field($_GET['filter_date']);
+            $where_clauses[] = "DATE(r.requested_at) = %s";
+            $params[] = $date;
+        }
+        $where_sql = !empty($where_clauses) ? "WHERE " . implode(' AND ', $where_clauses) : '';
+
+        $total_items = $wpdb->get_var($wpdb->prepare("SELECT COUNT(r.id) FROM $table_requests r LEFT JOIN $table_entries e ON r.entry_id = e.id $where_sql", $params));
 
         $this->set_pagination_args([
             'total_items' => $total_items,
             'per_page'    => $per_page
         ]);
 
-        $query = $wpdb->prepare(
-            "SELECT
-                r.id, r.entry_id, r.request_notes, r.status, r.requested_at,
-                r.new_lottery_number, r.new_amount,
-                e.customer_name, e.phone,
-                e.lottery_number as original_number, e.amount as original_amount,
-                u.display_name as agent_name
-             FROM $table_requests r
-             JOIN $table_entries e ON r.entry_id = e.id
-             JOIN $table_agents a ON r.agent_id = a.id
-             JOIN $table_users u ON a.user_id = u.ID
-             ORDER BY r.requested_at DESC
-             LIMIT %d OFFSET %d",
-            $per_page,
-            $offset
-        );
+        $query = "SELECT
+                    r.id, r.entry_id, r.request_notes, r.status, r.requested_at,
+                    r.new_lottery_number, r.new_amount,
+                    e.customer_name, e.phone,
+                    e.lottery_number as original_number, e.amount as original_amount,
+                    u.display_name as agent_name
+                 FROM $table_requests r
+                 JOIN $table_entries e ON r.entry_id = e.id
+                 JOIN $table_agents a ON r.agent_id = a.id
+                 JOIN $table_users u ON a.user_id = u.ID
+                 $where_sql
+                 ORDER BY r.requested_at DESC
+                 LIMIT %d OFFSET %d";
+
+        $query_params = array_merge($params, [$per_page, $offset]);
+        $this->items = $wpdb->get_results($wpdb->prepare($query, $query_params), ARRAY_A);
+    }
 
         $this->items = $wpdb->get_results($query, ARRAY_A);
     }
