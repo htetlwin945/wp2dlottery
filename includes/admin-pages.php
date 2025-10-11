@@ -12,23 +12,9 @@ function custom_lottery_mod_requests_page_callback() {
     $mod_requests_list_table = new Lotto_Mod_Requests_List_Table();
     $mod_requests_list_table->prepare_items();
     ?>
-    <style type="text/css">
-        /* Use flexbox for the main container to position details and actions */
-        .entry-details-container {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        /* The action buttons are now in their own div, which we can align */
-        .details-actions {
-            flex-shrink: 0; /* Prevents the actions div from shrinking */
-            padding-left: 10px; /* Adds some space between text and buttons */
-        }
-    </style>
     <div class="wrap">
         <h1 class="wp-heading-inline"><?php echo esc_html__('Modification Requests', 'custom-lottery'); ?></h1>
-        <form method="get">
-            <input type="hidden" name="page" value="<?php echo esc_attr($_REQUEST['page']); ?>" />
+        <form method="post">
             <?php $mod_requests_list_table->display(); ?>
         </form>
     </div>
@@ -332,6 +318,11 @@ function custom_lottery_agents_page_callback() {
         $commission_rate = sanitize_text_field($_POST['commission_rate']);
         $per_number_limit = sanitize_text_field($_POST['per_number_limit']);
         $status = sanitize_text_field($_POST['status']);
+        $morning_open = !empty($_POST['morning_open']) ? sanitize_text_field($_POST['morning_open']) : null;
+        $morning_close = !empty($_POST['morning_close']) ? sanitize_text_field($_POST['morning_close']) : null;
+        $evening_open = !empty($_POST['evening_open']) ? sanitize_text_field($_POST['evening_open']) : null;
+        $evening_close = !empty($_POST['evening_close']) ? sanitize_text_field($_POST['evening_close']) : null;
+
 
         $data = [
             'user_id' => $user_id,
@@ -339,6 +330,10 @@ function custom_lottery_agents_page_callback() {
             'commission_rate' => ($agent_type === 'commission') ? $commission_rate : 0,
             'per_number_limit' => ($agent_type === 'commission') ? $per_number_limit : 0,
             'status' => $status,
+            'morning_open' => ($agent_type === 'commission') ? $morning_open : null,
+            'morning_close' => ($agent_type === 'commission') ? $morning_close : null,
+            'evening_open' => ($agent_type === 'commission') ? $evening_open : null,
+            'evening_close' => ($agent_type === 'commission') ? $evening_close : null,
         ];
 
         if ($agent_id > 0) {
@@ -420,6 +415,22 @@ function custom_lottery_agents_page_callback() {
                      <tr class="commission-only-row">
                         <th scope="row"><label for="per_number_limit"><?php esc_html_e('Per-Number Limit Amount', 'custom-lottery'); ?></label></th>
                         <td><input type="number" id="per_number_limit" name="per_number_limit" value="<?php echo $agent ? esc_attr($agent->per_number_limit) : '0.00'; ?>" step="1" min="0"></td>
+                    </tr>
+                    <tr class="commission-only-row">
+                        <th scope="row"><label for="morning_open"><?php esc_html_e('Morning Open Time', 'custom-lottery'); ?></label></th>
+                        <td><input type="time" id="morning_open" name="morning_open" value="<?php echo $agent && $agent->morning_open ? esc_attr(date('H:i', strtotime($agent->morning_open))) : ''; ?>"></td>
+                    </tr>
+                    <tr class="commission-only-row">
+                        <th scope="row"><label for="morning_close"><?php esc_html_e('Morning Close Time', 'custom-lottery'); ?></label></th>
+                        <td><input type="time" id="morning_close" name="morning_close" value="<?php echo $agent && $agent->morning_close ? esc_attr(date('H:i', strtotime($agent->morning_close))) : ''; ?>"></td>
+                    </tr>
+                    <tr class="commission-only-row">
+                        <th scope="row"><label for="evening_open"><?php esc_html_e('Evening Open Time', 'custom-lottery'); ?></label></th>
+                        <td><input type="time" id="evening_open" name="evening_open" value="<?php echo $agent && $agent->evening_open ? esc_attr(date('H:i', strtotime($agent->evening_open))) : ''; ?>"></td>
+                    </tr>
+                    <tr class="commission-only-row">
+                        <th scope="row"><label for="evening_close"><?php esc_html_e('Evening Close Time', 'custom-lottery'); ?></label></th>
+                        <td><input type="time" id="evening_close" name="evening_close" value="<?php echo $agent && $agent->evening_close ? esc_attr(date('H:i', strtotime($agent->evening_close))) : ''; ?>"></td>
                     </tr>
                     <tr>
                         <th scope="row"><label for="status"><?php esc_html_e('Status', 'custom-lottery'); ?></label></th>
@@ -1006,20 +1017,8 @@ function custom_lottery_all_entries_page_callback() {
                 <form id="modification-request-form">
                     <input type="hidden" id="mod-request-entry-id" name="entry_id">
                     <?php wp_nonce_field('request_modification_nonce', 'mod_request_nonce'); ?>
-
-                    <p>
-                        <label for="mod-request-number"><?php esc_html_e('New Number:', 'custom-lottery'); ?></label><br>
-                        <input type="text" id="mod-request-number" name="new_number" class="small-text" maxlength="2" pattern="\d{2}" required>
-                    </p>
-                    <p>
-                        <label for="mod-request-amount"><?php esc_html_e('New Amount:', 'custom-lottery'); ?></label><br>
-                        <input type="number" id="mod-request-amount" name="new_amount" class="small-text" step="1" min="0" required>
-                    </p>
-                    <p>
-                        <label for="mod-request-notes"><?php esc_html_e('Reason for change (Notes):', 'custom-lottery'); ?></label><br>
-                        <textarea id="mod-request-notes" name="request_notes" rows="3" style="width: 100%;" required></textarea>
-                    </p>
-
+                    <p><?php esc_html_e('Please describe the change you would like to request for this entry.', 'custom-lottery'); ?></p>
+                    <textarea id="mod-request-notes" name="request_notes" rows="4" style="width: 100%;" required></textarea>
                     <button type="submit" class="button button-primary" style="margin-top: 10px;"><?php esc_html_e('Submit Request', 'custom-lottery'); ?></button>
                 </form>
                  <div id="mod-request-response"></div>

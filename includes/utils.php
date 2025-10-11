@@ -125,15 +125,35 @@ function check_and_auto_block_number($number, $session, $date, $agent_id = null,
 /**
  * Retrieves the configured session times with defaults.
  */
-function custom_lottery_get_session_times() {
+function custom_lottery_get_session_times($agent_id = null) {
+    global $wpdb;
+
     $defaults = [
-        'morning_open'  => '09:30',
-        'morning_close' => '12:00',
-        'evening_open'  => '14:00',
-        'evening_close' => '16:30',
+        'morning_open'  => get_option('custom_lottery_morning_session_open', '08:00'),
+        'morning_close' => get_option('custom_lottery_morning_session_close', '12:00'),
+        'evening_open'  => get_option('custom_lottery_evening_session_open', '13:00'),
+        'evening_close' => get_option('custom_lottery_evening_session_close', '16:30'),
     ];
-    $session_times = get_option('custom_lottery_session_times', $defaults);
-    return wp_parse_args($session_times, $defaults);
+
+    if ($agent_id) {
+        $table_agents = $wpdb->prefix . 'lotto_agents';
+        $agent_times = $wpdb->get_row($wpdb->prepare(
+            "SELECT morning_open, morning_close, evening_open, evening_close FROM $table_agents WHERE id = %d",
+            $agent_id
+        ), ARRAY_A);
+
+        if ($agent_times) {
+            // Use agent-specific time if it's set, otherwise fall back to default.
+            return [
+                'morning_open'  => !empty($agent_times['morning_open']) ? date('H:i', strtotime($agent_times['morning_open'])) : $defaults['morning_open'],
+                'morning_close' => !empty($agent_times['morning_close']) ? date('H:i', strtotime($agent_times['morning_close'])) : $defaults['morning_close'],
+                'evening_open'  => !empty($agent_times['evening_open']) ? date('H:i', strtotime($agent_times['evening_open'])) : $defaults['evening_open'],
+                'evening_close' => !empty($agent_times['evening_close']) ? date('H:i', strtotime($agent_times['evening_close'])) : $defaults['evening_close'],
+            ];
+        }
+    }
+
+    return $defaults;
 }
 
 /**

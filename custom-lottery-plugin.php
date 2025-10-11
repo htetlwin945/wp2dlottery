@@ -3,7 +3,7 @@
  * Plugin Name:       Custom 2-Digit Lottery
  * Plugin URI:        https://example.com/
  * Description:       A custom plugin to manage a 2-digit lottery system in WordPress.
- * Version:           1.4.0
+ * Version:           1.3.3
  * Author:            Jules
  * Author URI:        https://example.com/
  * License:           GPL v2 or later
@@ -18,7 +18,7 @@ if ( ! defined( 'WPINC' ) ) {
 }
 
 // Define plugin constants
-define( 'CUSTOM_LOTTERY_VERSION', '1.4.0' );
+define( 'CUSTOM_LOTTERY_VERSION', '1.3.3' );
 define( 'CUSTOM_LOTTERY_PLUGIN_PATH', plugin_dir_path( __FILE__ ) );
 define( 'CUSTOM_LOTTERY_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
@@ -63,30 +63,25 @@ function custom_lottery_enqueue_scripts($hook) {
         return;
     }
 
-    // Check if we are on a page that needs the lottery entry form functionality.
-    // This includes the dedicated entry page, the admin's 'All Entries' page, and the agent's 'My Entries' page.
-    $needs_entry_form = strpos($hook, 'custom-lottery-entry') !== false ||
-                        strpos($hook, 'custom-lottery-all-entries') !== false ||
-                        strpos($hook, 'custom-lottery-agent-entries') !== false;
-
-    if ($needs_entry_form) {
+    // For pages with the lottery entry form (Lottery Entry & All Entries)
+    if ($hook === 'lottery_page_custom-lottery-entry' || strpos($hook, 'custom-lottery-all-entries') !== false) {
         wp_enqueue_style('jquery-ui-css', 'https://ajax.googleapis.com/ajax/libs/jqueryui/1.12.1/themes/smoothness/jquery-ui.css');
         wp_enqueue_script(
             'custom-lottery-entry',
             CUSTOM_LOTTERY_PLUGIN_URL . 'js/lottery-entry.js',
             ['jquery', 'jquery-ui-autocomplete'],
-            CUSTOM_LOTTERY_VERSION, // Use plugin version for cache busting
+            '1.2.0',
             true
         );
     }
 
-    // For the All Entries page (admin) and My Entries page (agent), which have the list table and popup.
+    // For the All Entries page (admin) and My Entries page (agent)
     if (strpos($hook, 'custom-lottery-all-entries') !== false || strpos($hook, 'custom-lottery-agent-entries') !== false) {
         wp_enqueue_script(
             'custom-lottery-all-entries',
             CUSTOM_LOTTERY_PLUGIN_URL . 'js/all-entries.js',
-            ['jquery', 'jquery-ui-dialog', 'custom-lottery-entry'], // Dependency is now correctly loaded
-            CUSTOM_LOTTERY_VERSION,
+            ['jquery', 'jquery-ui-dialog', 'custom-lottery-entry'],
+            '1.1.0',
             true
         );
     }
@@ -103,7 +98,7 @@ function custom_lottery_enqueue_scripts($hook) {
     }
 
     // For the admin's "Modification Requests" page
-    if (strpos($hook, 'custom-lottery-mod-requests') !== false) {
+    if ($hook === 'lottery_page_custom-lottery-mod-requests') {
         wp_enqueue_script(
             'custom-lottery-admin-mod-requests',
             CUSTOM_LOTTERY_PLUGIN_URL . 'js/admin-mod-requests.js',

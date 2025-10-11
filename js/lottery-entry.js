@@ -1,12 +1,3 @@
-/**
- * Initializes the entire lottery entry form, including event handlers for autocomplete,
- * dynamic row addition/removal, form submission, and receipt printing.
- * This function is designed to be reusable for both standalone pages and popups (dialogs).
- *
- * @param {jQuery} $container The jQuery object representing the container of the form.
- *                            This allows the function to scope its selectors and prevent
- *                            conflicts when multiple forms exist (e.g., on a page and in a popup).
- */
 window.initializeLotteryForm = function($container) {
     var $ = jQuery;
 
@@ -21,11 +12,6 @@ window.initializeLotteryForm = function($container) {
 
     // --- Re-initialize all logic within the provided container ---
 
-    /**
-     * Sets up jQuery UI Autocomplete on the phone number field.
-     * Fetches customer data via AJAX and populates the customer name field upon selection.
-     * The `appendTo` option is crucial for making the autocomplete menu visible when used inside a jQuery UI Dialog.
-     */
     $container.find('#phone').autocomplete({
         source: function(request, response) {
             $.ajax({
@@ -53,11 +39,6 @@ window.initializeLotteryForm = function($container) {
     var lastTransaction = null;
     var entryRowWrapper = $container.find('#entry-rows-wrapper');
 
-    /**
-     * Handles the 'click' event for the "Add More" button.
-     * It clones the first entry row, clears its input values, and appends it to the wrapper.
-     * This allows the user to add multiple lottery number entries in a single submission.
-     */
     $container.find('#add-entry-row').on('click', function() {
         var newRow = entryRowWrapper.find('.entry-row:first').clone(true);
         newRow.find('input').val('');
@@ -222,9 +203,7 @@ window.initializeLotteryForm = function($container) {
 };
 
 jQuery(document).ready(function($) {
-    // This condition ensures the form is initialized on the main lottery entry page.
-    // For popups, initialization is handled by js/all-entries.js when the dialog is opened.
-    if ($('body.lottery_page_custom-lottery-entry, body.agent-portal_page_custom-lottery-entry').length) {
+    if ($('body.lottery_page_custom-lottery-entry').length) {
         window.initializeLotteryForm($('.wrap'));
     }
 });

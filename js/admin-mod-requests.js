@@ -8,9 +8,8 @@ jQuery(document).ready(function($) {
         var action = $link.hasClass('approve-mod-request') ? 'approve_modification_request' : 'reject_modification_request';
 
         // Disable the row actions to prevent multiple clicks
-        var $actionsContainer = $link.closest('.details-actions');
-        $actionsContainer.css('pointer-events', 'none');
-        $actionsContainer.append('<span class="spinner is-active" style="float: none; margin-left: 5px;"></span>');
+        $link.closest('.row-actions').css('pointer-events', 'none');
+        $link.closest('td').append('<span class="spinner is-active" style="float: none;"></span>');
 
         $.ajax({
             url: ajaxurl,
@@ -23,21 +22,21 @@ jQuery(document).ready(function($) {
             success: function(response) {
                 var $row = $link.closest('tr');
                 if (response.success) {
-                    // Update the status column and remove the action buttons
+                    // Update the status column
                     $row.find('td.column-status').text(response.data.new_status);
-                    $actionsContainer.remove();
+                    // Remove the actions and spinner
+                    $link.closest('.row-actions').remove();
+                    $row.find('.spinner').remove();
                 } else {
                     alert('Error: ' + response.data);
-                    // Re-enable the buttons on failure
-                    $actionsContainer.css('pointer-events', '');
-                    $actionsContainer.find('.spinner').remove();
+                    $link.closest('.row-actions').css('pointer-events', '');
+                    $row.find('.spinner').remove();
                 }
             },
             error: function() {
                 alert('An unexpected error occurred. Please try again.');
-                // Re-enable the buttons on error
-                $actionsContainer.css('pointer-events', '');
-                $actionsContainer.find('.spinner').remove();
+                $link.closest('.row-actions').css('pointer-events', '');
+                $link.closest('td').find('.spinner').remove();
             }
         });
     });
