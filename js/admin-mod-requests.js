@@ -20,16 +20,12 @@ jQuery(document).ready(function($) {
                 nonce: nonce
             },
             success: function(response) {
-                var $row = $link.closest('tr');
                 if (response.success) {
-                    // Update the status column
-                    $row.find('td.column-status').text(response.data.new_status);
-                    // Remove the actions and spinner
-                    $link.closest('.row-actions').remove();
-                    $row.find('.spinner').remove();
+                    // Reload the page to show the updated status and remove the processed row from the pending list.
+                    location.reload();
                 } else {
                     alert('Error: ' + response.data);
-                    $link.closest('.row-actions').css('pointer-events', '');
+                    $link.closest('.details-actions').css('pointer-events', '');
                     $row.find('.spinner').remove();
                 }
             },
