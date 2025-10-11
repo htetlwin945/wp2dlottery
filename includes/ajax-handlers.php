@@ -278,7 +278,7 @@ function custom_lottery_submit_entries_callback() {
 
             // Update the agent's balance
             $wpdb->query($wpdb->prepare(
-                "UPDATE {$wpdb->prefix}lotto_agents SET balance = balance + %s WHERE id = %d",
+                "UPDATE {$wpdb->prefix}lotto_agents SET balance = COALESCE(balance, 0) + %s WHERE id = %d",
                 $commission_amount,
                 $agent_id
             ));
@@ -327,7 +327,7 @@ function custom_lottery_submit_entries_callback() {
 
                     // Update the agent's balance
                     $wpdb->query($wpdb->prepare(
-                        "UPDATE {$wpdb->prefix}lotto_agents SET balance = balance + %s WHERE id = %d",
+                        "UPDATE {$wpdb->prefix}lotto_agents SET balance = COALESCE(balance, 0) + %s WHERE id = %d",
                         $commission_amount,
                         $agent_id
                     ));
