@@ -93,10 +93,25 @@ function activate_custom_lottery_plugin() {
         morning_close TIME NULL,
         evening_open TIME NULL,
         evening_close TIME NULL,
+        balance decimal(10, 2) DEFAULT 0.00,
         PRIMARY KEY  (id),
         UNIQUE KEY user_id (user_id)
     ) $charset_collate;";
     dbDelta( $sql_agents );
+
+    // Table for agent transactions
+    $table_name_agent_transactions = $wpdb->prefix . 'lotto_agent_transactions';
+    $sql_agent_transactions = "CREATE TABLE $table_name_agent_transactions (
+        id bigint(20) NOT NULL AUTO_INCREMENT,
+        agent_id bigint(20) NOT NULL,
+        type varchar(20) NOT NULL, -- 'commission', 'payout'
+        amount decimal(10, 2) NOT NULL,
+        related_entry_id bigint(20) NULL,
+        notes text NULL,
+        timestamp datetime DEFAULT '0000-00-00 00:00:00' NOT NULL,
+        PRIMARY KEY  (id)
+    ) $charset_collate;";
+    dbDelta( $sql_agent_transactions );
 
     // Table for cover requests
     $table_name_cover_requests = $wpdb->prefix . 'lotto_cover_requests';

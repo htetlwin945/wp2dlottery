@@ -198,10 +198,230 @@ function custom_lottery_admin_menu() {
             'custom_lottery_agents_page_callback'
         );
 
+        add_submenu_page(
+            'custom-lottery-dashboard',
+            __('Agent Payouts', 'custom-lottery'),
+            __('Agent Payouts', 'custom-lottery'),
+            'manage_options',
+            'custom-lottery-agent-payouts',
+            'custom_lottery_agent_payouts_page_callback'
+        );
+
         add_action("load-{$dashboard_hook}", 'custom_lottery_add_dashboard_widgets');
     }
 }
 add_action('admin_menu', 'custom_lottery_admin_menu');
+
+/**
+ * Callback for the Agent Payouts page.
+ */
+function custom_lottery_agent_payouts_page_callback() {
+    global $wpdb;
+    $table_agents = $wpdb->prefix . 'lotto_agents';
+    $table_users = $wpdb->users;
+
+    // Fetch all commission agents with their user data
+    $agents = $wpdb->get_results("
+        SELECT a.id, a.balance, u.display_name
+        FROM $table_agents a
+        JOIN $table_users u ON a.user_id = u.ID
+        WHERE a.agent_type = 'commission'
+        ORDER BY u.display_name ASC
+    ");
+    ?>
+    <div class="wrap">
+        <h1 class="wp-heading-inline"><?php echo esc_html__('Agent Payouts', 'custom-lottery'); ?></h1>
+
+        <div id="col-container">
+            <div id="col-left">
+                <div class="col-wrap">
+                    <h2><?php echo esc_html__('Agent Balances', 'custom-lottery'); ?></h2>
+                    <table class="wp-list-table widefat fixed striped">
+                        <thead>
+                            <tr>
+                                <th scope="col"><?php esc_html_e('Agent Name', 'custom-lottery'); ?></th>
+                                <th scope="col"><?php esc_html_e('Current Balance (Kyat)', 'custom-lottery'); ?></th>
+                                <th scope="col"><?php esc_html_e('Action', 'custom-lottery'); ?></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if ($agents) : foreach ($agents as $agent) : ?>
+                                <tr id="agent-row-<?php echo esc_attr($agent->id); ?>">
+                                    <td><strong><?php echo esc_html($agent->display_name); ?></strong></td>
+                                    <td class="agent-balance"><?php echo number_format($agent->balance, 2); ?></td>
+                                    <td>
+                                        <button class="button button-primary make-payout-button"
+                                                data-agent-id="<?php echo esc_attr($agent->id); ?>"
+                                                data-agent-name="<?php echo esc_attr($agent->display_name); ?>">
+                                            <?php esc_html_e('Make Payout', 'custom-lottery'); ?>
+                                        </button>
+                                    </td>
+                                </tr>
+                            <?php endforeach; else : ?>
+                                <tr>
+                                    <td colspan="3"><?php esc_html_e('No commission agents found.', 'custom-lottery'); ?></td>
+                                </tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div id="col-right">
+                <div class="col-wrap">
+                    <h2><?php echo esc_html__('Recent Transactions', 'custom-lottery'); ?></h2>
+                    <?php
+                    if ( ! class_exists( 'Lotto_Payouts_List_Table' ) ) {
+                        require_once plugin_dir_path( __FILE__ ) . 'class-lotto-payouts-list-table.php';
+                    }
+                    $payouts_list_table = new Lotto_Payouts_List_Table();
+                    $payouts_list_table->prepare_items();
+                    $payouts_list_table->display();
+                    ?>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payout Modal -->
+    <div id="payout-modal" title="Make a Payout" style="display:none;">
+        <form id="payout-form">
+            <p><strong>Agent:</strong> <span id="modal-agent-name"></span></p>
+            <input type="hidden" id="modal-agent-id" name="agent_id">
+            <?php wp_nonce_field('make_payout_nonce_action', 'make_payout_nonce'); ?>
+            <p>
+                <label for="payout-amount"><?php esc_html_e('Payout Amount (Kyat)', 'custom-lottery'); ?></label>
+                <input type="number" id="payout-amount" name="amount" class="widefat" step="0.01" min="0" required>
+            </p>
+            <p>
+                <label for="payout-notes"><?php esc_html_e('Notes (Optional)', 'custom-lottery'); ?></label>
+                <textarea id="payout-notes" name="notes" class="widefat" rows="3"></textarea>
+            </p>
+            <button type="submit" class="button button-primary"><?php esc_html_e('Record Payout', 'custom-lottery'); ?></button>
+        </form>
+        <div id="modal-response" style="margin-top:10px;"></div>
+    </div>
+    <?php
+}
+
+
+/**
+ * Enqueue scripts and styles for the admin pages.
+ */
+function custom_lottery_admin_enqueue_scripts($hook) {
+    // For the main dashboard, enqueue Chart.js
+    if ($hook === 'toplevel_page_custom-lottery-dashboard') {
+        wp_enqueue_script('chart-js', 'https://cdn.jsdelivr.net/npm/chart.js', [], '3.7.0', true);
+    }
+
+    // For the tools page, enqueue custom JS for manual import
+    if ($hook === 'lottery_page_custom-lottery-tools') {
+        wp_enqueue_script(
+            'lottery-tools-js',
+            plugin_dir_url(__FILE__) . '../js/tools-page.js',
+            ['jquery'],
+            '1.0.0',
+            true
+        );
+        wp_localize_script('lottery-tools-js', 'lotteryToolsAjax', [
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('manual_import_nonce')
+        ]);
+    }
+
+    // For the reports page (financial report), enqueue custom JS for cover requests
+    if ($hook === 'lottery_page_custom-lottery-reports') {
+         wp_enqueue_script(
+            'lottery-cover-requests-js',
+            plugin_dir_url(__FILE__) . '../js/cover-requests.js',
+            ['jquery'],
+            '1.0.0',
+            true
+        );
+        wp_localize_script('lottery-cover-requests-js', 'coverRequestsAjax', [
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('cover_requests_nonce')
+        ]);
+    }
+
+    // Enqueue scripts for the entry page and any page that uses the entry form popup
+    if (strpos($hook, 'custom-lottery-entry') !== false || strpos($hook, 'custom-lottery-all-entries') !== false) {
+        // Enqueue jQuery UI dialog and autocomplete
+        wp_enqueue_script('jquery-ui-dialog');
+        wp_enqueue_script('jquery-ui-autocomplete');
+        wp_enqueue_style('wp-admin'); // For dialog styling
+
+        // Enqueue the main entry form script
+        wp_enqueue_script(
+            'lottery-entry-form-js',
+            plugin_dir_url(__FILE__) . '../js/entry-form.js',
+            ['jquery', 'jquery-ui-dialog', 'jquery-ui-autocomplete'],
+            '1.1.0', // Incremented version
+            true
+        );
+
+        // Localize script with necessary data
+        wp_localize_script('lottery-entry-form-js', 'lotteryEntryAjax', [
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('lottery_entry_action'),
+            'search_nonce' => wp_create_nonce('lottery_entry_action') // Using same nonce for simplicity
+        ]);
+    }
+
+     if ($hook === 'lottery_page_custom-lottery-agent-payouts') {
+        wp_enqueue_script('jquery-ui-dialog');
+        wp_enqueue_style('wp-admin'); // For dialog styling
+
+        wp_add_inline_script('jquery-ui-dialog', "
+            jQuery(document).ready(function(\$) {
+                var \$modal = \$('#payout-modal').dialog({
+                    autoOpen: false,
+                    modal: true,
+                    width: 400,
+                    close: function() {
+                        \$('#payout-form')[0].reset();
+                        \$('#modal-response').empty();
+                    }
+                });
+
+                \$('.make-payout-button').on('click', function() {
+                    var agentId = \$(this).data('agent-id');
+                    var agentName = \$(this).data('agent-name');
+                    \$('#modal-agent-id').val(agentId);
+                    \$('#modal-agent-name').text(agentName);
+                    \$modal.dialog('open');
+                });
+
+                \$('#payout-form').on('submit', function(e) {
+                    e.preventDefault();
+                    \$('#modal-response').text('Processing...').css('color', 'black');
+
+                    var data = {
+                        action: 'make_payout',
+                        nonce: \$('#make_payout_nonce').val(),
+                        agent_id: \$('#modal-agent-id').val(),
+                        amount: \$('#payout-amount').val(),
+                        notes: \$('#payout-notes').val()
+                    };
+
+                    \$.post(ajaxurl, data, function(response) {
+                        if (response.success) {
+                            \$('#modal-response').text(response.data.message).css('color', 'green');
+                            // Update the balance in the table
+                            var newBalance = parseFloat(response.data.new_balance).toFixed(2);
+                            \$('#agent-row-' + data.agent_id).find('.agent-balance').text(newBalance.replace(/\\B(?=(\\d{3})+(?!\\d))/g, ','));
+                            setTimeout(function() {
+                                \$modal.dialog('close');
+                            }, 1500);
+                        } else {
+                            \$('#modal-response').text(response.data.message).css('color', 'red');
+                        }
+                    });
+                });
+            });
+        ");
+    }
+}
+add_action('admin_enqueue_scripts', 'custom_lottery_admin_enqueue_scripts');
 
 /**
  * Callback for the Agent Dashboard page.
@@ -212,7 +432,7 @@ function custom_lottery_agent_dashboard_page_callback() {
     $table_entries = $wpdb->prefix . 'lotto_entries';
     $current_user_id = get_current_user_id();
 
-    $agent = $wpdb->get_row($wpdb->prepare("SELECT id, commission_rate FROM $table_agents WHERE user_id = %d", $current_user_id));
+    $agent = $wpdb->get_row($wpdb->prepare("SELECT id, commission_rate, balance FROM $table_agents WHERE user_id = %d", $current_user_id));
 
     if (!$agent) {
         echo '<div class="wrap"><h1>' . esc_html__('Error', 'custom-lottery') . '</h1><p>' . esc_html__('Could not retrieve your agent information.', 'custom-lottery') . '</p></div>';
@@ -275,6 +495,10 @@ function custom_lottery_agent_dashboard_page_callback() {
                                         <h3><?php esc_html_e('This Month\'s Commission', 'custom-lottery'); ?></h3>
                                         <p style="font-size: 24px; margin: 0; color: green;"><?php echo number_format($monthly_commission ?? 0, 2); ?> Kyat</p>
                                     </div>
+                                    <div>
+                                        <h3><?php esc_html_e('Current Balance', 'custom-lottery'); ?></h3>
+                                        <p style="font-size: 24px; margin: 0; color: blue;"><?php echo number_format($agent->balance ?? 0, 2); ?> Kyat</p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -304,6 +528,20 @@ function custom_lottery_agent_dashboard_page_callback() {
                                         <?php endif; ?>
                                     </tbody>
                                 </table>
+                            </div>
+                        </div>
+
+                        <div class="postbox">
+                            <h2 class="hndle"><span><?php esc_html_e('Recent Wallet Transactions', 'custom-lottery'); ?></span></h2>
+                            <div class="inside">
+                                <?php
+                                if ( ! class_exists( 'Lotto_Payouts_List_Table' ) ) {
+                                    require_once plugin_dir_path( __FILE__ ) . 'class-lotto-payouts-list-table.php';
+                                }
+                                $transactions_list_table = new Lotto_Payouts_List_Table();
+                                $transactions_list_table->prepare_items( $agent_id );
+                                $transactions_list_table->display();
+                                ?>
                             </div>
                         </div>
                     </div>

@@ -201,10 +201,15 @@ function custom_lottery_submit_entries_callback() {
     }
     // End of advanced time-based entry restriction logic
 
-    // Get agent_id if the current user is a commission agent
+    // Get agent_id and commission rate if the current user is a commission agent
     $agent_id = null;
+    $agent_commission_rate = 0.00;
     if (in_array('commission_agent', (array) $current_user->roles)) {
-        $agent_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_agents WHERE user_id = %d", $current_user->ID));
+        $agent_data = $wpdb->get_row($wpdb->prepare("SELECT id, commission_rate FROM $table_agents WHERE user_id = %d", $current_user->ID));
+        if ($agent_data) {
+            $agent_id = $agent_data->id;
+            $agent_commission_rate = (float) $agent_data->commission_rate;
+        }
     }
 
     // Get customer and session data
@@ -256,6 +261,29 @@ function custom_lottery_submit_entries_callback() {
             $entry_data['agent_id'] = $agent_id;
         }
         $wpdb->insert($table_entries, $entry_data);
+        $entry_id = $wpdb->insert_id; // Get the ID of the entry just inserted
+
+        // If the entry was submitted by an agent, calculate and record commission
+        if ($agent_id && $agent_commission_rate > 0) {
+            $commission_amount = $amount * ($agent_commission_rate / 100);
+
+            // Record the commission transaction
+            $wpdb->insert($wpdb->prefix . 'lotto_agent_transactions', [
+                'agent_id' => $agent_id,
+                'type' => 'commission',
+                'amount' => $commission_amount,
+                'related_entry_id' => $entry_id,
+                'timestamp' => $current_datetime->format('Y-m-d H:i:s'),
+            ]);
+
+            // Update the agent's balance
+            $wpdb->query($wpdb->prepare(
+                "UPDATE {$wpdb->prefix}lotto_agents SET balance = balance + %f WHERE id = %d",
+                $commission_amount,
+                $agent_id
+            ));
+        }
+
         check_and_auto_block_number($lottery_number, $draw_session, $current_date, $agent_id, $amount);
         $success_count++;
         $total_amount += $amount;
@@ -282,6 +310,29 @@ function custom_lottery_submit_entries_callback() {
                     $rev_entry_data['agent_id'] = $agent_id;
                 }
                 $wpdb->insert($table_entries, $rev_entry_data);
+                $rev_entry_id = $wpdb->insert_id;
+
+                // If the entry was submitted by an agent, calculate and record commission for reversed number
+                if ($agent_id && $agent_commission_rate > 0) {
+                    $commission_amount = $amount * ($agent_commission_rate / 100);
+
+                    // Record the commission transaction
+                    $wpdb->insert($wpdb->prefix . 'lotto_agent_transactions', [
+                        'agent_id' => $agent_id,
+                        'type' => 'commission',
+                        'amount' => $commission_amount,
+                        'related_entry_id' => $rev_entry_id,
+                        'timestamp' => $current_datetime->format('Y-m-d H:i:s'),
+                    ]);
+
+                    // Update the agent's balance
+                    $wpdb->query($wpdb->prepare(
+                        "UPDATE {$wpdb->prefix}lotto_agents SET balance = balance + %f WHERE id = %d",
+                        $commission_amount,
+                        $agent_id
+                    ));
+                }
+
                 check_and_auto_block_number($reversed_number, $draw_session, $current_date, $agent_id, $amount);
                 $success_count++;
                 $total_amount += $amount;
@@ -670,3 +721,60 @@ function custom_lottery_reject_modification_request_callback() {
     wp_send_json_success(['message' => 'Request rejected.', 'new_status' => 'Rejected']);
 }
 add_action('wp_ajax_reject_modification_request', 'custom_lottery_reject_modification_request_callback');
+
+/**
+ * AJAX handler for making a payout to an agent.
+ */
+function custom_lottery_make_payout_callback() {
+    check_ajax_referer('make_payout_nonce_action', 'nonce');
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(['message' => 'Permission denied.']);
+        return;
+    }
+
+    global $wpdb;
+    $table_agents = $wpdb->prefix . 'lotto_agents';
+    $table_transactions = $wpdb->prefix . 'lotto_agent_transactions';
+
+    $agent_id = isset($_POST['agent_id']) ? absint($_POST['agent_id']) : 0;
+    $amount = isset($_POST['amount']) ? (float) $_POST['amount'] : 0;
+    $notes = isset($_POST['notes']) ? sanitize_textarea_field($_POST['notes']) : '';
+
+    if (empty($agent_id) || empty($amount) || $amount <= 0) {
+        wp_send_json_error(['message' => 'Invalid agent ID or amount.']);
+        return;
+    }
+
+    // Start a transaction
+    $wpdb->query('START TRANSACTION');
+
+    // Insert the payout transaction
+    $transaction_inserted = $wpdb->insert($table_transactions, [
+        'agent_id' => $agent_id,
+        'type' => 'payout',
+        'amount' => -$amount, // Store payout as a negative value
+        'notes' => $notes,
+        'timestamp' => current_time('mysql'),
+    ]);
+
+    // Subtract the amount from the agent's balance
+    $balance_updated = $wpdb->query($wpdb->prepare(
+        "UPDATE $table_agents SET balance = balance - %f WHERE id = %d",
+        $amount,
+        $agent_id
+    ));
+
+    if ($transaction_inserted && $balance_updated) {
+        $wpdb->query('COMMIT');
+        $new_balance = $wpdb->get_var($wpdb->prepare("SELECT balance FROM $table_agents WHERE id = %d", $agent_id));
+        wp_send_json_success([
+            'message' => 'Payout recorded successfully.',
+            'new_balance' => $new_balance
+        ]);
+    } else {
+        $wpdb->query('ROLLBACK');
+        wp_send_json_error(['message' => 'Failed to record payout. Please try again.']);
+    }
+}
+add_action('wp_ajax_make_payout', 'custom_lottery_make_payout_callback');
