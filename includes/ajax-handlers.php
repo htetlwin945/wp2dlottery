@@ -924,3 +924,66 @@ function custom_lottery_reject_payout_request_callback() {
     }
 }
 add_action('wp_ajax_reject_payout_request', 'custom_lottery_reject_payout_request_callback');
+
+/**
+ * AJAX handler for updating an agent's details.
+ */
+function custom_lottery_update_agent_callback() {
+    check_ajax_referer('cl_save_agent_action', 'nonce');
+
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error(['message' => 'Permission denied.']);
+        return;
+    }
+
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'lotto_agents';
+
+    // Validation and Sanitization
+    $agent_id = isset($_POST['agent_id']) ? absint($_POST['agent_id']) : 0;
+    $user_id = isset($_POST['user_id']) ? absint($_POST['user_id']) : 0;
+    $agent_type = isset($_POST['agent_type']) ? sanitize_text_field($_POST['agent_type']) : '';
+    $commission_rate = isset($_POST['commission_rate']) ? sanitize_text_field($_POST['commission_rate']) : '0';
+    $per_number_limit = isset($_POST['per_number_limit']) ? sanitize_text_field($_POST['per_number_limit']) : '0';
+    $payout_threshold = isset($_POST['payout_threshold']) ? sanitize_text_field($_POST['payout_threshold']) : '';
+    $status = isset($_POST['status']) ? sanitize_text_field($_POST['status']) : '';
+    $morning_open = isset($_POST['morning_open']) ? sanitize_text_field($_POST['morning_open']) : '';
+    $morning_close = isset($_POST['morning_close']) ? sanitize_text_field($_POST['morning_close']) : '';
+    $evening_open = isset($_POST['evening_open']) ? sanitize_text_field($_POST['evening_open']) : '';
+    $evening_close = isset($_POST['evening_close']) ? sanitize_text_field($_POST['evening_close']) : '';
+
+    if (empty($user_id) || empty($agent_type) || empty($status)) {
+        wp_send_json_error(['message' => 'Missing required fields: User, Agent Type, or Status.']);
+        return;
+    }
+
+    $data = [
+        'user_id' => $user_id,
+        'agent_type' => $agent_type,
+        'commission_rate' => ($agent_type === 'commission') ? $commission_rate : 0,
+        'per_number_limit' => ($agent_type === 'commission') ? $per_number_limit : 0,
+        'payout_threshold' => !empty($payout_threshold) ? $payout_threshold : null,
+        'status' => $status,
+        'morning_open' => !empty($morning_open) ? $morning_open : null,
+        'morning_close' => !empty($morning_close) ? $morning_close : null,
+        'evening_open' => !empty($evening_open) ? $evening_open : null,
+        'evening_close' => !empty($evening_close) ? $evening_close : null,
+    ];
+
+    if ($agent_id > 0) {
+        $result = $wpdb->update($table_name, $data, ['id' => $agent_id]);
+        if ($result !== false) {
+            wp_send_json_success(['message' => 'Agent updated successfully.']);
+        } else {
+            wp_send_json_error(['message' => 'Failed to update agent.']);
+        }
+    } else {
+        $result = $wpdb->insert($table_name, $data);
+        if ($result) {
+            wp_send_json_success(['message' => 'Agent added successfully.']);
+        } else {
+            wp_send_json_error(['message' => 'Failed to add agent.']);
+        }
+    }
+}
+add_action('wp_ajax_update_agent', 'custom_lottery_update_agent_callback');

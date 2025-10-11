@@ -619,6 +619,43 @@ function custom_lottery_admin_enqueue_scripts($hook) {
     }
 
     // For the Payout Requests page
+    if ($hook === 'lottery_page_custom-lottery-agents') {
+        wp_enqueue_script('jquery');
+        wp_add_inline_script('jquery', "
+            jQuery(document).ready(function($) {
+                $('#edit-agent-form').on('submit', function(e) {
+                    e.preventDefault();
+
+                    var \$form = $(this);
+                    var \$responseDiv = $('#agent-form-response');
+                    var \$submitButton = \$form.find('input[type=submit]');
+                    var originalButtonText = \$submitButton.val();
+
+                    \$responseDiv.html('<p class=\"notice notice-info\">Saving...</p>').show();
+                    \$submitButton.val('Saving...').prop('disabled', true);
+
+                    var data = \$form.serialize() + '&action=update_agent&nonce=' + '" . wp_create_nonce('cl_save_agent_action') . "';
+
+                    $.post(ajaxurl, data, function(response) {
+                        if (response.success) {
+                            \$responseDiv.html('<p class=\"notice notice-success\">' + response.data.message + '</p>');
+                             // Redirect back to the list after a short delay
+                            setTimeout(function() {
+                                window.location.href = '?page=custom-lottery-agents';
+                            }, 1500);
+                        } else {
+                            \$responseDiv.html('<p class=\"notice notice-error\">' + response.data.message + '</p>');
+                            \$submitButton.val(originalButtonText).prop('disabled', false);
+                        }
+                    }).fail(function() {
+                        \$responseDiv.html('<p class=\"notice notice-error\">An unexpected error occurred. Please try again.</p>');
+                        \$submitButton.val(originalButtonText).prop('disabled', false);
+                    });
+                });
+            });
+        ");
+    }
+
     if ($hook === 'lottery_page_custom-lottery-payout-requests') {
         wp_enqueue_script('jquery-ui-dialog');
         wp_enqueue_style('wp-admin'); // For dialog styling
@@ -906,47 +943,6 @@ function custom_lottery_agents_page_callback() {
     $action = isset($_REQUEST['action']) ? sanitize_key($_REQUEST['action']) : 'list';
     $agent_id = isset($_REQUEST['agent_id']) ? absint($_REQUEST['agent_id']) : 0;
 
-    // Handle form submission for adding/editing agents
-    if (isset($_POST['submit_agent']) && check_admin_referer('cl_save_agent_action', 'cl_save_agent_nonce')) {
-        $agent_id = absint($_POST['agent_id']);
-        $user_id = absint($_POST['user_id']);
-        $agent_type = sanitize_text_field($_POST['agent_type']);
-        $commission_rate = sanitize_text_field($_POST['commission_rate']);
-        $per_number_limit = sanitize_text_field($_POST['per_number_limit']);
-        $payout_threshold = sanitize_text_field($_POST['payout_threshold']);
-        $status = sanitize_text_field($_POST['status']);
-
-        // Handle custom session times
-        $morning_open = sanitize_text_field($_POST['morning_open']);
-        $morning_close = sanitize_text_field($_POST['morning_close']);
-        $evening_open = sanitize_text_field($_POST['evening_open']);
-        $evening_close = sanitize_text_field($_POST['evening_close']);
-
-        $data = [
-            'user_id' => $user_id,
-            'agent_type' => $agent_type,
-            'commission_rate' => ($agent_type === 'commission') ? $commission_rate : 0,
-            'per_number_limit' => ($agent_type === 'commission') ? $per_number_limit : 0,
-            'payout_threshold' => !empty($payout_threshold) ? $payout_threshold : null,
-            'status' => $status,
-            'morning_open' => !empty($morning_open) ? $morning_open : null,
-            'morning_close' => !empty($morning_close) ? $morning_close : null,
-            'evening_open' => !empty($evening_open) ? $evening_open : null,
-            'evening_close' => !empty($evening_close) ? $evening_close : null,
-        ];
-
-        if ($agent_id > 0) {
-            if ($wpdb->update($table_name, $data, ['id' => $agent_id])) {
-                echo '<div class="updated"><p>' . esc_html__('Agent updated successfully.', 'custom-lottery') . '</p></div>';
-            }
-        } else {
-            if ($wpdb->insert($table_name, $data)) {
-                echo '<div class="updated"><p>' . esc_html__('Agent added successfully.', 'custom-lottery') . '</p></div>';
-            }
-        }
-        $action = 'list'; // Go back to the list view
-    }
-
     // Handle deletion
     if ($action === 'delete' && $agent_id > 0) {
         $nonce = isset($_REQUEST['_wpnonce']) ? $_REQUEST['_wpnonce'] : '';
@@ -982,8 +978,9 @@ function custom_lottery_agents_page_callback() {
         ?>
         <div class="wrap">
             <h1><?php echo esc_html($form_title); ?></h1>
+            <div id="agent-form-response"></div>
             <a href="?page=<?php echo esc_attr($page_slug); ?>" class="button">&larr; <?php esc_html_e('Back to Agents List', 'custom-lottery'); ?></a>
-            <form method="post" style="margin-top: 20px;">
+            <form id="edit-agent-form" style="margin-top: 20px;">
                 <input type="hidden" name="agent_id" value="<?php echo esc_attr($agent_id); ?>">
                 <?php wp_nonce_field('cl_save_agent_action', 'cl_save_agent_nonce'); ?>
                 <table class="form-table">
