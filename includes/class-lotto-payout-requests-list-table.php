@@ -94,23 +94,20 @@ class Lotto_Payout_Requests_List_Table extends WP_List_Table {
 
     public function column_actions( $item ) {
         if ($item['status'] === 'pending') {
-            $approve_nonce = wp_create_nonce('payout_request_approve_' . $item['id']);
-            $reject_nonce = wp_create_nonce('payout_request_reject_' . $item['id']);
-
             $actions = sprintf(
-                '<button class="button button-primary approve-payout-request" data-request-id="%1$d" data-agent-id="%2$d" data-agent-name="%3$s" data-amount="%4$s" data-nonce="%5$s">%6$s</button> ' .
-                '<button class="button button-secondary reject-payout-request" data-request-id="%1$d" data-nonce="%7$s">%8$s</button>',
+                '<button class="button button-primary process-payout-button" data-request-id="%1$d" data-agent-id="%2$d" data-agent-name="%3$s" data-amount-raw="%4$s" data-notes="%5$s">%6$s</button> ' .
+                '<button class="button button-secondary reject-payout-button" data-request-id="%1$d">%8$s</button>',
                 esc_attr($item['id']),
                 esc_attr($item['agent_id']),
                 esc_attr($item['agent_name']),
                 esc_attr($item['amount']),
-                esc_attr($approve_nonce),
-                __('Approve', 'custom-lottery'),
-                esc_attr($reject_nonce),
+                esc_attr($item['notes']),
+                __('Process Payout', 'custom-lottery'),
+                '', // Placeholder for removed nonce
                 __('Reject', 'custom-lottery')
             );
             return $actions;
         }
-        return 'N/A';
+         return esc_html(ucfirst($item['status']));
     }
 }

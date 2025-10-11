@@ -869,61 +869,148 @@ function custom_lottery_agent_request_payout_callback() {
 add_action('wp_ajax_agent_request_payout', 'custom_lottery_agent_request_payout_callback');
 
 /**
- * AJAX handler for an admin to approve a payout request.
+ * Consolidated AJAX handler for managing a payout request (approving or rejecting).
  */
-function custom_lottery_approve_payout_request_callback() {
-    $request_id = isset($_POST['request_id']) ? absint($_POST['request_id']) : 0;
-    check_ajax_referer('payout_request_approve_' . $request_id, 'nonce');
+function custom_lottery_manage_payout_request_callback() {
+    check_ajax_referer('payout_manage_action', 'nonce');
 
     if (!current_user_can('manage_options')) {
         wp_send_json_error(['message' => 'Permission denied.']);
+        return;
     }
 
     global $wpdb;
     $table_requests = $wpdb->prefix . 'lotto_payout_requests';
+    $table_agents = $wpdb->prefix . 'lotto_agents';
+    $table_transactions = $wpdb->prefix . 'lotto_agent_transactions';
 
-    $updated = $wpdb->update(
+    $request_id = isset($_POST['request_id']) ? absint($_POST['request_id']) : 0;
+    $outcome = isset($_POST['outcome']) ? sanitize_key($_POST['outcome']) : '';
+
+    if (empty($request_id) || !in_array($outcome, ['approve', 'reject'])) {
+        wp_send_json_error(['message' => 'Invalid request data.']);
+        return;
+    }
+
+    // Start a transaction
+    $wpdb->query('START TRANSACTION');
+
+    if ($outcome === 'reject') {
+        $admin_notes = isset($_POST['admin_notes']) ? sanitize_textarea_field($_POST['admin_notes']) : '';
+        $updated = $wpdb->update(
+            $table_requests,
+            ['status' => 'rejected', 'admin_notes' => $admin_notes, 'resolved_by' => get_current_user_id(), 'resolved_at' => current_time('mysql')],
+            ['id' => $request_id, 'status' => 'pending']
+        );
+        if ($updated) {
+            $wpdb->query('COMMIT');
+            wp_send_json_success(['message' => 'Request rejected.']);
+        } else {
+            $wpdb->query('ROLLBACK');
+            wp_send_json_error(['message' => 'Failed to reject request. It might have been processed already.']);
+        }
+        return;
+    }
+
+    // --- Handle Approval ---
+    $agent_id = isset($_POST['agent_id']) ? absint($_POST['agent_id']) : 0;
+    $final_amount = isset($_POST['final_amount']) ? (float) $_POST['final_amount'] : 0;
+    $admin_notes = isset($_POST['admin_notes']) ? sanitize_textarea_field($_POST['admin_notes']) : '';
+    $payout_method = isset($_POST['payout_method']) ? sanitize_text_field($_POST['payout_method']) : 'Cash';
+    $attachment_url = '';
+
+    if (empty($agent_id) || $final_amount <= 0) {
+        $wpdb->query('ROLLBACK');
+        wp_send_json_error(['message' => 'Invalid agent ID or final amount.']);
+        return;
+    }
+
+    // Handle file upload
+    if (isset($_FILES['proof_attachment']) && $_FILES['proof_attachment']['error'] === UPLOAD_ERR_OK) {
+        if (!function_exists('wp_handle_upload')) {
+            require_once(ABSPATH . 'wp-admin/includes/file.php');
+        }
+        $movefile = wp_handle_upload($_FILES['proof_attachment'], ['test_form' => false]);
+        if ($movefile && !isset($movefile['error'])) {
+            $attachment_url = $movefile['url'];
+        } else {
+            $wpdb->query('ROLLBACK');
+            wp_send_json_error(['message' => 'File upload error: ' . $movefile['error']]);
+            return;
+        }
+    }
+
+    // Get original requested amount to determine status
+    $original_amount = (float) $wpdb->get_var($wpdb->prepare("SELECT amount FROM $table_requests WHERE id = %d", $request_id));
+    $status = ($final_amount < $original_amount) ? 'partially_paid' : 'approved';
+
+    // 1. Update the request status
+    $request_updated = $wpdb->update(
         $table_requests,
-        ['status' => 'approved', 'resolved_by' => get_current_user_id(), 'resolved_at' => current_time('mysql')],
+        ['status' => $status, 'final_amount' => $final_amount, 'admin_notes' => $admin_notes, 'resolved_by' => get_current_user_id(), 'resolved_at' => current_time('mysql')],
         ['id' => $request_id, 'status' => 'pending']
     );
 
-    if ($updated) {
-        wp_send_json_success(['message' => 'Request approved.']);
+    // 2. Insert the payout transaction
+    $transaction_inserted = $wpdb->insert($table_transactions, [
+        'agent_id' => $agent_id, 'type' => 'payout', 'amount' => -$final_amount,
+        'notes' => $admin_notes, 'timestamp' => current_time('mysql'),
+        'payout_method' => $payout_method, 'proof_attachment' => $attachment_url,
+    ]);
+
+    // 3. Subtract the amount from the agent's balance
+    $balance_updated = $wpdb->query($wpdb->prepare("UPDATE $table_agents SET balance = balance - %f WHERE id = %d", $final_amount, $agent_id));
+
+    if ($request_updated && $transaction_inserted && $balance_updated) {
+        $wpdb->query('COMMIT');
+        wp_send_json_success(['message' => 'Payout processed and request updated successfully.']);
     } else {
-        wp_send_json_error(['message' => 'Failed to approve request or request already processed.']);
+        $wpdb->query('ROLLBACK');
+        wp_send_json_error(['message' => 'A database error occurred. The transaction has been rolled back.']);
     }
 }
-add_action('wp_ajax_approve_payout_request', 'custom_lottery_approve_payout_request_callback');
-
+add_action('wp_ajax_manage_payout_request', 'custom_lottery_manage_payout_request_callback');
 
 /**
- * AJAX handler for an admin to reject a payout request.
+ * AJAX handler for an agent to cancel their own payout request.
  */
-function custom_lottery_reject_payout_request_callback() {
+function custom_lottery_agent_cancel_payout_request_callback() {
     $request_id = isset($_POST['request_id']) ? absint($_POST['request_id']) : 0;
-    check_ajax_referer('payout_request_reject_' . $request_id, 'nonce');
+    check_ajax_referer('agent_cancel_payout_request_' . $request_id, 'nonce');
 
-    if (!current_user_can('manage_options')) {
+    if (!current_user_can('enter_lottery_numbers') || !in_array('commission_agent', (array) wp_get_current_user()->roles)) {
         wp_send_json_error(['message' => 'Permission denied.']);
+        return;
     }
 
     global $wpdb;
     $table_requests = $wpdb->prefix . 'lotto_payout_requests';
+    $table_agents = $wpdb->prefix . 'lotto_agents';
+    $current_user_id = get_current_user_id();
+    $agent_id = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table_agents WHERE user_id = %d", $current_user_id));
 
-    $updated = $wpdb->update(
-        $table_requests,
-        ['status' => 'rejected', 'resolved_by' => get_current_user_id(), 'resolved_at' => current_time('mysql')],
-        ['id' => $request_id, 'status' => 'pending']
-    );
+    if (!$agent_id) {
+        wp_send_json_error(['message' => 'Could not verify your agent status.']);
+        return;
+    }
 
-    if ($updated) {
-        wp_send_json_success(['message' => 'Request rejected.']);
+    // Security check: Make sure the agent owns this request
+    $owner_agent_id = $wpdb->get_var($wpdb->prepare("SELECT agent_id FROM $table_requests WHERE id = %d", $request_id));
+    if ($owner_agent_id != $agent_id) {
+        wp_send_json_error(['message' => 'You do not have permission to cancel this request.']);
+        return;
+    }
+
+    $deleted = $wpdb->delete($table_requests, ['id' => $request_id, 'status' => 'pending']);
+
+    if ($deleted) {
+        wp_send_json_success(['message' => 'Payout request cancelled successfully.']);
     } else {
-        wp_send_json_error(['message' => 'Failed to reject request or request already processed.']);
+        wp_send_json_error(['message' => 'Failed to cancel request. It may have already been processed by an admin.']);
     }
 }
-add_action('wp_ajax_reject_payout_request', 'custom_lottery_reject_payout_request_callback');
+add_action('wp_ajax_agent_cancel_payout_request', 'custom_lottery_agent_cancel_payout_request_callback');
+
 
 /**
  * AJAX handler for updating an agent's details.

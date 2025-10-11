@@ -4,7 +4,7 @@ Donate link: https://example.com/
 Tags: lottery, 2-digit
 Requires at least: 5.0
 Tested up to: 6.0
-Stable tag: 1.6.0
+Stable tag: 1.7.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -33,6 +33,16 @@ Once activated, you can access all features through the "Lottery" menu in the Wo
 3. The settings page.
 
 == Changelog ==
+
+= 1.7.0 =
+* Refactor: Complete overhaul of the agent payout system for a more professional workflow.
+* Feature: Consolidated "Agent Payouts" and "Payout Requests" into a single "Payout Management" admin page with a tabbed interface (Requests, Manual Payout, Ledger).
+* Feature: Replaced the simple "Approve" button with a "Process Payout" modal, allowing admins to set the final amount, add notes, and upload proof of transfer for partial or full payments.
+* Feature: Added a rejection modal requiring admins to provide a reason for rejecting a payout request.
+* Feature: Created a new "My Payout Requests" page in the agent portal, giving agents full visibility into the status (Pending, Approved, Rejected, Partially Paid), processed date, and admin notes for their requests.
+* Feature: Implemented a "Cancel Request" feature, allowing agents to cancel their own pending payout requests.
+* Feature: Enhanced the agent's "My Wallet" summary to show a detailed breakdown of Total Balance, Pending Payouts, and Available Balance. The ability to request a new payout is now based on the Available Balance.
+* Schema: Added `final_amount` and `admin_notes` columns to the `lotto_payout_requests` table to store detailed transaction information.
 
 = 1.6.0 =
 * Feature: Implement a Payout Request system for agents.

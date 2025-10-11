@@ -6,19 +6,64 @@ if ( ! defined( 'WPINC' ) ) {
 }
 
 /**
- * Callback for the Payout Requests page.
+ * Renders the content for the 'Payout Requests' tab.
  */
-function custom_lottery_payout_requests_page_callback() {
+function custom_lottery_payout_requests_tab_content() {
     ?>
-    <div class="wrap">
-        <h1 class="wp-heading-inline"><?php echo esc_html__('Agent Payout Requests', 'custom-lottery'); ?></h1>
-        <form method="post">
-            <?php
-            $payout_requests_list_table = new Lotto_Payout_Requests_List_Table();
-            $payout_requests_list_table->prepare_items();
-            $payout_requests_list_table->display();
-            ?>
+    <form method="post">
+        <?php
+        $payout_requests_list_table = new Lotto_Payout_Requests_List_Table();
+        $payout_requests_list_table->prepare_items();
+        $payout_requests_list_table->display();
+        ?>
+    </form>
+
+    <!-- Process Payout Modal -->
+    <div id="process-payout-modal" title="<?php esc_attr_e('Process Payout Request', 'custom-lottery'); ?>" style="display:none;">
+        <form id="process-payout-form" enctype="multipart/form-data">
+            <input type="hidden" id="modal-request-id" name="request_id">
+            <input type="hidden" id="modal-agent-id-process" name="agent_id">
+            <?php wp_nonce_field('payout_manage_action', 'payout_manage_nonce'); ?>
+
+            <p><strong><?php esc_html_e('Agent:', 'custom-lottery'); ?></strong> <span id="modal-agent-name-process"></span></p>
+            <p><strong><?php esc_html_e('Requested Amount:', 'custom-lottery'); ?></strong> <span id="modal-requested-amount"></span></p>
+            <p><strong><?php esc_html_e('Agent Notes:', 'custom-lottery'); ?></strong> <span id="modal-agent-notes"></span></p>
+            <hr>
+            <p>
+                <label for="payout-amount-process"><?php esc_html_e('Payout Amount (Kyat)', 'custom-lottery'); ?></label>
+                <input type="number" id="payout-amount-process" name="final_amount" class="widefat" step="0.01" min="0" required>
+            </p>
+            <p>
+                <label for="payout-method-process"><?php esc_html_e('Payout Method', 'custom-lottery'); ?></label>
+                <select id="payout-method-process" name="payout_method" class="widefat" required>
+                    <option value="Cash"><?php esc_html_e('Cash', 'custom-lottery'); ?></option>
+                    <option value="Bank Transfer"><?php esc_html_e('Bank Transfer', 'custom-lottery'); ?></option>
+                    <option value="E-Wallet"><?php esc_html_e('E-Wallet', 'custom-lottery'); ?></option>
+                    <option value="Other"><?php esc_html_e('Other', 'custom-lottery'); ?></option>
+                </select>
+            </p>
+             <p>
+                <label for="proof-attachment-process"><?php esc_html_e('Proof of Transfer', 'custom-lottery'); ?></label>
+                <input type="file" id="proof-attachment-process" name="proof_attachment" class="widefat" accept="image/*,application/pdf">
+            </p>
+            <p>
+                <label for="admin-notes-process"><?php esc_html_e('Admin Notes', 'custom-lottery'); ?></label>
+                <textarea id="admin-notes-process" name="admin_notes" class="widefat" rows="3"></textarea>
+            </p>
         </form>
+        <div id="modal-process-response" style="margin-top:10px;"></div>
+    </div>
+
+    <!-- Reject Payout Modal -->
+    <div id="reject-payout-modal" title="<?php esc_attr_e('Reject Payout Request', 'custom-lottery'); ?>" style="display:none;">
+        <form id="reject-payout-form">
+            <input type="hidden" id="modal-request-id-reject" name="request_id">
+            <p>
+                <label for="admin-notes-reject"><?php esc_html_e('Reason for Rejection (Admin Notes)', 'custom-lottery'); ?></label>
+                <textarea id="admin-notes-reject" name="admin_notes" class="widefat" rows="4" required></textarea>
+            </p>
+        </form>
+        <div id="modal-reject-response" style="margin-top:10px;"></div>
     </div>
     <?php
 }
@@ -119,6 +164,15 @@ function custom_lottery_admin_menu() {
             'enter_lottery_numbers',
             'custom-lottery-agent-wallet',
             'custom_lottery_agent_wallet_page_callback'
+        );
+
+        add_submenu_page(
+            'custom-lottery-agent-wallet', // Parent slug
+            __('My Payout Requests', 'custom-lottery'), // Page title
+            __('My Payout Requests', 'custom-lottery'), // Menu title
+            'enter_lottery_numbers', // Capability
+            'custom-lottery-agent-payout-requests', // Menu slug
+            'custom_lottery_agent_payout_requests_page_callback' // Callback
         );
 
     } else {
@@ -235,20 +289,11 @@ function custom_lottery_admin_menu() {
 
         add_submenu_page(
             'custom-lottery-dashboard',
-            __('Agent Payouts', 'custom-lottery'),
-            __('Agent Payouts', 'custom-lottery'),
+            __('Payout Management', 'custom-lottery'),
+            __('Payout Management', 'custom-lottery'),
             'manage_options',
-            'custom-lottery-agent-payouts',
-            'custom_lottery_agent_payouts_page_callback'
-        );
-
-        add_submenu_page(
-            'custom-lottery-dashboard',
-            __('Payout Requests', 'custom-lottery'),
-            __('Payout Requests', 'custom-lottery'),
-            'manage_options',
-            'custom-lottery-payout-requests',
-            'custom_lottery_payout_requests_page_callback'
+            'custom-lottery-payout-management',
+            'custom_lottery_payout_management_page_callback'
         );
 
         add_action("load-{$dashboard_hook}", 'custom_lottery_add_dashboard_widgets');
@@ -257,9 +302,9 @@ function custom_lottery_admin_menu() {
 add_action('admin_menu', 'custom_lottery_admin_menu');
 
 /**
- * Callback for the Agent Payouts page.
+ * Renders the content for the 'Manual Payout' tab.
  */
-function custom_lottery_agent_payouts_page_callback() {
+function custom_lottery_manual_payout_tab_content() {
     global $wpdb;
     $table_agents = $wpdb->prefix . 'lotto_agents';
     $table_users = $wpdb->users;
@@ -273,63 +318,45 @@ function custom_lottery_agent_payouts_page_callback() {
         ORDER BY u.display_name ASC
     ");
     ?>
-    <div class="wrap">
-        <h1 class="wp-heading-inline"><?php echo esc_html__('Agent Payouts', 'custom-lottery'); ?></h1>
-
-        <div id="col-container">
-            <div id="col-left">
-                <div class="col-wrap">
-                    <h2><?php echo esc_html__('Agent Balances', 'custom-lottery'); ?></h2>
-                    <table class="wp-list-table widefat fixed striped">
-                        <thead>
-                            <tr>
-                                <th scope="col"><?php esc_html_e('Agent Name', 'custom-lottery'); ?></th>
-                                <th scope="col"><?php esc_html_e('Current Balance (Kyat)', 'custom-lottery'); ?></th>
-                                <th scope="col"><?php esc_html_e('Action', 'custom-lottery'); ?></th>
+    <div id="col-container">
+        <div id="col-left">
+            <div class="col-wrap">
+                <h2><?php echo esc_html__('Agent Balances', 'custom-lottery'); ?></h2>
+                <table class="wp-list-table widefat fixed striped">
+                    <thead>
+                        <tr>
+                            <th scope="col"><?php esc_html_e('Agent Name', 'custom-lottery'); ?></th>
+                            <th scope="col"><?php esc_html_e('Current Balance (Kyat)', 'custom-lottery'); ?></th>
+                            <th scope="col"><?php esc_html_e('Action', 'custom-lottery'); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if ($agents) : foreach ($agents as $agent) : ?>
+                            <tr id="agent-row-<?php echo esc_attr($agent->id); ?>">
+                                <td><strong><?php echo esc_html($agent->display_name); ?></strong></td>
+                                <td class="agent-balance"><?php echo number_format($agent->balance, 2); ?></td>
+                                <td>
+                                    <button class="button button-primary make-payout-button"
+                                            data-agent-id="<?php echo esc_attr($agent->id); ?>"
+                                            data-agent-name="<?php echo esc_attr($agent->display_name); ?>">
+                                        <?php esc_html_e('Make Payout', 'custom-lottery'); ?>
+                                    </button>
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            <?php if ($agents) : foreach ($agents as $agent) : ?>
-                                <tr id="agent-row-<?php echo esc_attr($agent->id); ?>">
-                                    <td><strong><?php echo esc_html($agent->display_name); ?></strong></td>
-                                    <td class="agent-balance"><?php echo number_format($agent->balance, 2); ?></td>
-                                    <td>
-                                        <button class="button button-primary make-payout-button"
-                                                data-agent-id="<?php echo esc_attr($agent->id); ?>"
-                                                data-agent-name="<?php echo esc_attr($agent->display_name); ?>">
-                                            <?php esc_html_e('Make Payout', 'custom-lottery'); ?>
-                                        </button>
-                                    </td>
-                                </tr>
-                            <?php endforeach; else : ?>
-                                <tr>
-                                    <td colspan="3"><?php esc_html_e('No commission agents found.', 'custom-lottery'); ?></td>
-                                </tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            <div id="col-right">
-                <div class="col-wrap">
-                    <h2><?php echo esc_html__('Recent Transactions', 'custom-lottery'); ?></h2>
-                    <?php
-                    if ( ! class_exists( 'Lotto_Payouts_List_Table' ) ) {
-                        require_once plugin_dir_path( __FILE__ ) . 'class-lotto-payouts-list-table.php';
-                    }
-                    $payouts_list_table = new Lotto_Payouts_List_Table();
-                    $payouts_list_table->prepare_items();
-                    $payouts_list_table->display();
-                    ?>
-                </div>
+                        <?php endforeach; else : ?>
+                            <tr>
+                                <td colspan="3"><?php esc_html_e('No commission agents found.', 'custom-lottery'); ?></td>
+                            </tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
-
-    <!-- Payout Modal -->
-    <div id="payout-modal" title="Make a Payout" style="display:none;">
+     <!-- Manual Payout Modal -->
+    <div id="payout-modal" title="<?php esc_attr_e('Make a Manual Payout', 'custom-lottery'); ?>" style="display:none;">
         <form id="payout-form" enctype="multipart/form-data">
-            <p><strong>Agent:</strong> <span id="modal-agent-name"></span></p>
+            <p><strong><?php esc_html_e('Agent:', 'custom-lottery'); ?></strong> <span id="modal-agent-name"></span></p>
             <input type="hidden" id="modal-agent-id" name="agent_id">
             <?php wp_nonce_field('make_payout_nonce_action', 'make_payout_nonce'); ?>
             <p>
@@ -361,47 +388,154 @@ function custom_lottery_agent_payouts_page_callback() {
 }
 
 /**
+ * Renders the content for the 'Transaction Ledger' tab.
+ */
+function custom_lottery_transaction_ledger_tab_content() {
+    ?>
+    <div id="col-right">
+        <div class="col-wrap">
+            <?php
+            if ( ! class_exists( 'Lotto_Payouts_List_Table' ) ) {
+                require_once plugin_dir_path( __FILE__ ) . 'class-lotto-payouts-list-table.php';
+            }
+            $payouts_list_table = new Lotto_Payouts_List_Table();
+            $payouts_list_table->prepare_items();
+            $payouts_list_table->display();
+            ?>
+        </div>
+    </div>
+    <?php
+}
+
+/**
+ * Callback for the "My Payout Requests" page for agents.
+ */
+function custom_lottery_agent_payout_requests_page_callback() {
+    // Ensure the new list table class is loaded
+    if ( ! class_exists( 'Lotto_Agent_Payout_Requests_List_Table' ) ) {
+        require_once plugin_dir_path( __FILE__ ) . 'class-lotto-agent-payout-requests-list-table.php';
+    }
+    ?>
+    <div class="wrap">
+        <h1 class="wp-heading-inline"><?php echo esc_html__('My Payout Requests', 'custom-lottery'); ?></h1>
+        <p><?php echo esc_html__('Here is the history of all your payout requests.', 'custom-lottery'); ?></p>
+
+        <div id="ajax-response" style="margin-top:10px;"></div>
+
+        <form method="post">
+            <?php
+            $payout_requests_list_table = new Lotto_Agent_Payout_Requests_List_Table();
+            $payout_requests_list_table->prepare_items();
+            $payout_requests_list_table->display();
+            ?>
+        </form>
+    </div>
+    <?php
+}
+
+
+/**
+ * Callback for the new Payout Management page.
+ */
+function custom_lottery_payout_management_page_callback() {
+    $active_tab = isset($_GET['tab']) ? sanitize_key($_GET['tab']) : 'requests';
+    ?>
+    <div class="wrap">
+        <h1 class="wp-heading-inline"><?php echo esc_html__('Payout Management', 'custom-lottery'); ?></h1>
+        <nav class="nav-tab-wrapper">
+            <a href="?page=custom-lottery-payout-management&tab=requests" class="nav-tab <?php echo $active_tab == 'requests' ? 'nav-tab-active' : ''; ?>">
+                <?php esc_html_e('Payout Requests', 'custom-lottery'); ?>
+            </a>
+            <a href="?page=custom-lottery-payout-management&tab=manual" class="nav-tab <?php echo $active_tab == 'manual' ? 'nav-tab-active' : ''; ?>">
+                <?php esc_html_e('Manual Payout', 'custom-lottery'); ?>
+            </a>
+            <a href="?page=custom-lottery-payout-management&tab=ledger" class="nav-tab <?php echo $active_tab == 'ledger' ? 'nav-tab-active' : ''; ?>">
+                <?php esc_html_e('Transaction Ledger', 'custom-lottery'); ?>
+            </a>
+        </nav>
+
+        <div class="tab-content" style="margin-top: 20px;">
+            <?php
+            switch ($active_tab) {
+                case 'manual':
+                    custom_lottery_manual_payout_tab_content();
+                    break;
+                case 'ledger':
+                    custom_lottery_transaction_ledger_tab_content();
+                    break;
+                case 'requests':
+                default:
+                    custom_lottery_payout_requests_tab_content();
+                    break;
+            }
+            ?>
+        </div>
+    </div>
+    <?php
+}
+
+
+/**
  * Callback for the Agent Wallet page.
  */
 function custom_lottery_agent_wallet_page_callback() {
     global $wpdb;
     $current_user_id = get_current_user_id();
     $table_agents = $wpdb->prefix . 'lotto_agents';
+    $table_requests = $wpdb->prefix . 'lotto_payout_requests';
 
-    // Fetch the agent's data
-    $agent = $wpdb->get_row($wpdb->prepare("SELECT balance, payout_threshold FROM $table_agents WHERE user_id = %d", $current_user_id));
-    $current_balance = $agent ? (float) $agent->balance : 0;
+    $agent = $wpdb->get_row($wpdb->prepare("SELECT id, balance, payout_threshold FROM $table_agents WHERE user_id = %d", $current_user_id));
+    $total_balance = $agent ? (float) $agent->balance : 0;
 
-    // Determine the payout threshold
+    $pending_payouts = 0;
+    if ($agent) {
+        $pending_payouts = (float) $wpdb->get_var($wpdb->prepare(
+            "SELECT SUM(amount) FROM $table_requests WHERE agent_id = %d AND status = 'pending'",
+            $agent->id
+        ));
+    }
+    $available_balance = $total_balance - $pending_payouts;
+
     $default_threshold = (float) get_option('custom_lottery_default_payout_threshold', 10000);
     $payout_threshold = !empty($agent->payout_threshold) ? (float) $agent->payout_threshold : $default_threshold;
     ?>
     <div class="wrap">
         <h1 class="wp-heading-inline"><?php echo esc_html__('My Wallet', 'custom-lottery'); ?></h1>
 
-        <div id="wallet-summary" style="display: flex; gap: 20px; margin-top: 20px;">
-            <div class="postbox" style="flex: 1;">
-                <h2 class="hndle"><span><?php esc_html_e('Current Balance', 'custom-lottery'); ?></span></h2>
+        <div id="wallet-summary" style="display: flex; gap: 20px; margin-top: 20px; flex-wrap: wrap;">
+            <div class="postbox" style="flex: 1; min-width: 200px;">
+                <h2 class="hndle"><span><?php esc_html_e('Total Balance', 'custom-lottery'); ?></span></h2>
                 <div class="inside">
-                    <p style="font-size: 24px; margin: 0; color: blue;"><?php echo number_format($current_balance, 2); ?> Kyat</p>
+                    <p style="font-size: 24px; margin: 0;"><?php echo number_format($total_balance, 2); ?> Kyat</p>
                 </div>
             </div>
-            <div class="postbox" style="flex: 1;">
+             <div class="postbox" style="flex: 1; min-width: 200px;">
+                <h2 class="hndle"><span><?php esc_html_e('Pending Payouts', 'custom-lottery'); ?></span></h2>
+                <div class="inside">
+                    <p style="font-size: 24px; margin: 0; color: orange;"><?php echo number_format($pending_payouts, 2); ?> Kyat</p>
+                </div>
+            </div>
+            <div class="postbox" style="flex: 1; min-width: 200px;">
+                <h2 class="hndle"><span><?php esc_html_e('Available Balance', 'custom-lottery'); ?></span></h2>
+                <div class="inside">
+                    <p style="font-size: 24px; margin: 0; color: green;"><?php echo number_format($available_balance, 2); ?> Kyat</p>
+                </div>
+            </div>
+            <div class="postbox" style="flex: 1; min-width: 200px;">
                 <h2 class="hndle"><span><?php esc_html_e('Payout Threshold', 'custom-lottery'); ?></span></h2>
                 <div class="inside">
                     <p style="font-size: 24px; margin: 0;"><?php echo number_format($payout_threshold, 2); ?> Kyat</p>
-                    <p class="description"><?php esc_html_e('You can request a payout once your balance is above this amount.', 'custom-lottery'); ?></p>
                 </div>
             </div>
         </div>
 
-        <?php if ($current_balance >= $payout_threshold) : ?>
+        <?php if ($available_balance >= $payout_threshold) : ?>
             <button id="request-payout-button" class="button button-primary" style="margin-top: 20px;"><?php esc_html_e('Request Payout', 'custom-lottery'); ?></button>
         <?php else : ?>
-            <p style="margin-top: 20px;"><i><?php esc_html_e('Your balance is below the threshold to request a payout.', 'custom-lottery'); ?></i></p>
+            <p style="margin-top: 20px;"><i><?php esc_html_e('Your available balance is below the threshold to request a payout.', 'custom-lottery'); ?></i></p>
         <?php endif; ?>
 
-        <h2 style="margin-top: 40px;"><?php echo esc_html__('Payout History', 'custom-lottery'); ?></h2>
+        <h2 style="margin-top: 40px;"><?php echo esc_html__('Completed Payouts History', 'custom-lottery'); ?></h2>
         <p><?php echo esc_html__('Here you can see the history of all payouts you have received.', 'custom-lottery'); ?></p>
 
         <form method="get">
@@ -508,61 +642,127 @@ function custom_lottery_admin_enqueue_scripts($hook) {
         ]);
     }
 
-     if ($hook === 'lottery_page_custom-lottery-agent-payouts') {
+    // For the Payout Management page
+    if ($hook === 'lottery_page_custom-lottery-payout-management') {
         wp_enqueue_script('jquery-ui-dialog');
         wp_enqueue_style('wp-admin'); // For dialog styling
 
         wp_add_inline_script('jquery-ui-dialog', "
-            jQuery(document).ready(function(\$) {
-                var \$modal = \$('#payout-modal').dialog({
-                    autoOpen: false,
-                    modal: true,
-                    width: 400,
-                    close: function() {
-                        \$('#payout-form')[0].reset();
-                        \$('#modal-response').empty();
-                    }
+            jQuery(document).ready(function($) {
+                // --- MODAL DEFINITIONS ---
+                var processModal = $('#process-payout-modal').dialog({
+                    autoOpen: false, modal: true, width: 450,
+                    buttons: {
+                        'Submit Payout': function() { $('#process-payout-form').submit(); },
+                        'Cancel': function() { $(this).dialog('close'); }
+                    },
+                    close: function() { $('#process-payout-form')[0].reset(); $('#modal-process-response').empty(); }
                 });
 
-                \$('.make-payout-button').on('click', function() {
-                    var agentId = \$(this).data('agent-id');
-                    var agentName = \$(this).data('agent-name');
-                    \$('#modal-agent-id').val(agentId);
-                    \$('#modal-agent-name').text(agentName);
-                    \$modal.dialog('open');
+                var rejectModal = $('#reject-payout-modal').dialog({
+                    autoOpen: false, modal: true, width: 400,
+                    buttons: {
+                        'Reject Request': function() { $('#reject-payout-form').submit(); },
+                        'Cancel': function() { $(this).dialog('close'); }
+                    },
+                    close: function() { $('#reject-payout-form')[0].reset(); $('#modal-reject-response').empty(); }
                 });
 
-                \$('#payout-form').on('submit', function(e) {
+                var manualPayoutModal = $('#payout-modal').dialog({
+                    autoOpen: false, modal: true, width: 400,
+                    close: function() { $('#payout-form')[0].reset(); $('#modal-response').empty(); }
+                });
+
+                // --- EVENT HANDLERS for REQUESTS TAB ---
+                // Open Process Modal
+                $(document).on('click', '.process-payout-button', function() {
+                    var button = $(this);
+                    $('#modal-request-id').val(button.data('request-id'));
+                    $('#modal-agent-id-process').val(button.data('agent-id'));
+                    $('#modal-agent-name-process').text(button.data('agent-name'));
+                    $('#modal-requested-amount').text(button.data('amount-raw'));
+                    $('#modal-agent-notes').text(button.data('notes'));
+                    $('#payout-amount-process').val(button.data('amount-raw'));
+                    processModal.dialog('open');
+                });
+
+                // Open Reject Modal
+                $(document).on('click', '.reject-payout-button', function() {
+                    $('#modal-request-id-reject').val($(this).data('request-id'));
+                    rejectModal.dialog('open');
+                });
+
+                // AJAX for Approving/Partially Paying
+                $('#process-payout-form').on('submit', function(e) {
                     e.preventDefault();
-                    \$('#modal-response').text('Processing...').css('color', 'black');
+                    $('#modal-process-response').text('Processing...').css('color', 'black');
+
+                    var formData = new FormData(this);
+                    formData.append('action', 'manage_payout_request');
+                    formData.append('outcome', 'approve');
+
+                    $.ajax({
+                        url: ajaxurl, type: 'POST', data: formData,
+                        processData: false, contentType: false,
+                        success: function(response) {
+                            if (response.success) {
+                                $('#modal-process-response').text(response.data.message).css('color', 'green');
+                                setTimeout(function() { location.reload(); }, 1500);
+                            } else {
+                                $('#modal-process-response').text(response.data.message).css('color', 'red');
+                            }
+                        }
+                    });
+                });
+
+                // AJAX for Rejecting
+                $('#reject-payout-form').on('submit', function(e) {
+                    e.preventDefault();
+                    $('#modal-reject-response').text('Processing...').css('color', 'black');
+
+                    $.post(ajaxurl, {
+                        action: 'manage_payout_request',
+                        outcome: 'reject',
+                        request_id: $('#modal-request-id-reject').val(),
+                        admin_notes: $('#admin-notes-reject').val(),
+                        nonce: $('#payout_manage_nonce').val()
+                    }, function(response) {
+                        if (response.success) {
+                            $('#modal-reject-response').text(response.data.message).css('color', 'green');
+                            setTimeout(function() { location.reload(); }, 1500);
+                        } else {
+                            $('#modal-reject-response').text(response.data.message).css('color', 'red');
+                        }
+                    });
+                });
+
+
+                // --- EVENT HANDLERS for MANUAL PAYOUT TAB ---
+                $('.make-payout-button').on('click', function() {
+                    var agentId = $(this).data('agent-id');
+                    var agentName = $(this).data('agent-name');
+                    $('#modal-agent-id').val(agentId);
+                    $('#modal-agent-name').text(agentName);
+                    manualPayoutModal.dialog('open');
+                });
+
+                $('#payout-form').on('submit', function(e) {
+                    e.preventDefault();
+                    $('#modal-response').text('Processing...').css('color', 'black');
 
                     var formData = new FormData(this);
                     formData.append('action', 'make_payout');
-                    formData.append('nonce', \$('#make_payout_nonce').val());
-                    var agentId = \$('#modal-agent-id').val();
 
-                    \$.ajax({
-                        url: ajaxurl,
-                        type: 'POST',
-                        data: formData,
-                        processData: false,
-                        contentType: false,
+                    $.ajax({
+                        url: ajaxurl, type: 'POST', data: formData,
+                        processData: false, contentType: false,
                         success: function(response) {
                             if (response.success) {
-                                \$('#modal-response').text(response.data.message).css('color', 'green');
-                                // Update the balance in the table
-                                var newBalance = parseFloat(response.data.new_balance).toFixed(2);
-                                \$('#agent-row-' + agentId).find('.agent-balance').text(newBalance.replace(/\\B(?=(\\d{3})+(?!\\d))/g, ','));
-                                // Reload the page to show the updated recent transactions table
-                                setTimeout(function() {
-                                    location.reload();
-                                }, 1500);
+                                $('#modal-response').text(response.data.message).css('color', 'green');
+                                setTimeout(function() { location.reload(); }, 1500);
                             } else {
-                                \$('#modal-response').text(response.data.message).css('color', 'red');
+                                $('#modal-response').text(response.data.message).css('color', 'red');
                             }
-                        },
-                        error: function() {
-                            \$('#modal-response').text('An error occurred during the request.').css('color', 'red');
                         }
                     });
                 });
@@ -570,17 +770,17 @@ function custom_lottery_admin_enqueue_scripts($hook) {
         ");
     }
 
+
     // For the Agent Wallet page
-    if ($hook === 'agent-portal_page_custom-lottery-agent-wallet') {
+    if ($hook === 'agent-portal_page_custom-lottery-agent-wallet' || $hook === 'my-wallet_page_custom-lottery-agent-payout-requests') {
         wp_enqueue_script('jquery-ui-dialog');
-        wp_enqueue_style('wp-admin'); // For dialog styling
+        wp_enqueue_style('wp-admin');
 
         wp_add_inline_script('jquery-ui-dialog', "
             jQuery(document).ready(function($) {
+                // Logic for Wallet Page
                 var requestModal = $('#payout-request-modal').dialog({
-                    autoOpen: false,
-                    modal: true,
-                    width: 400,
+                    autoOpen: false, modal: true, width: 400,
                     close: function() {
                         $('#payout-request-form')[0].reset();
                         $('#request-modal-response').empty();
@@ -593,30 +793,49 @@ function custom_lottery_admin_enqueue_scripts($hook) {
 
                 $('#payout-request-form').on('submit', function(e) {
                     e.preventDefault();
-                    $('#request-modal-response').text('Submitting request...').css('color', 'black');
-
-                    var data = {
-                        action: 'agent_request_payout',
-                        nonce: $('#agent_request_payout_nonce').val(),
-                        amount: $('#request-amount').val(),
-                        notes: $('#request-notes').val()
-                    };
-
-                    $.post(ajaxurl, data, function(response) {
+                    $('#request-modal-response').text('Submitting...').css('color', 'black');
+                    $.post(ajaxurl, $(this).serialize() + '&action=agent_request_payout', function(response) {
                         if (response.success) {
                             $('#request-modal-response').text(response.data.message).css('color', 'green');
-                            setTimeout(function() {
-                                requestModal.dialog('close');
-                                location.reload(); // Reload to hide the button if balance drops below threshold
-                            }, 2000);
+                            setTimeout(function() { location.reload(); }, 2000);
                         } else {
                             $('#request-modal-response').text(response.data.message).css('color', 'red');
+                        }
+                    });
+                });
+
+                // Logic for Payout Requests Page
+                $('.cancel-payout-request').on('click', function(e) {
+                    e.preventDefault();
+                    if (!confirm('" . esc_js(__('Are you sure you want to cancel this request?', 'custom-lottery')) . "')) {
+                        return;
+                    }
+
+                    var link = $(this);
+                    var requestId = link.data('request-id');
+                    var nonce = link.data('nonce');
+
+                    link.text('Cancelling...').css('pointer-events', 'none');
+
+                    $.post(ajaxurl, {
+                        action: 'agent_cancel_payout_request',
+                        request_id: requestId,
+                        nonce: nonce
+                    }, function(response) {
+                        var responseDiv = $('#ajax-response');
+                        if (response.success) {
+                            responseDiv.html('<div class=\"notice notice-success is-dismissible\"><p>' + response.data.message + '</p></div>');
+                            link.closest('tr').fadeOut(500, function() { $(this).remove(); });
+                        } else {
+                            responseDiv.html('<div class=\"notice notice-error is-dismissible\"><p>' + response.data.message + '</p></div>');
+                            link.text('Cancel Request').css('pointer-events', 'auto');
                         }
                     });
                 });
             });
         ");
     }
+
 
     // For the Payout Requests page
     if ($hook === 'lottery_page_custom-lottery-agents') {
@@ -650,115 +869,6 @@ function custom_lottery_admin_enqueue_scripts($hook) {
                     }).fail(function() {
                         \$responseDiv.html('<p class=\"notice notice-error\">An unexpected error occurred. Please try again.</p>');
                         \$submitButton.val(originalButtonText).prop('disabled', false);
-                    });
-                });
-            });
-        ");
-    }
-
-    if ($hook === 'lottery_page_custom-lottery-payout-requests') {
-        wp_enqueue_script('jquery-ui-dialog');
-        wp_enqueue_style('wp-admin'); // For dialog styling
-
-        wp_add_inline_script('jquery-ui-dialog', "
-            jQuery(document).ready(function($) {
-                // Re-use the existing payout modal
-                var payoutModal = $('#payout-modal').dialog({
-                    autoOpen: false,
-                    modal: true,
-                    width: 400,
-                    close: function() {
-                        $('#payout-form')[0].reset();
-                        $('#modal-response').empty();
-                    }
-                });
-
-                // Handler for APPROVING a request
-                $('.approve-payout-request').on('click', function() {
-                    var requestId = $(this).data('request-id');
-                    var agentId = $(this).data('agent-id');
-                    var agentName = $(this).data('agent-name');
-                    var amount = $(this).data('amount');
-
-                    // Pre-fill and open the payout modal
-                    $('#modal-agent-id').val(agentId);
-                    $('#modal-agent-name').text(agentName);
-                    $('#payout-amount').val(amount);
-
-                    // Store request-specific data on the form for the submit handler
-                    $('#payout-form').data('request-id', requestId);
-                    $('#payout-form').data('is-approval', true); // Flag to know this is from an approval click
-
-                    payoutModal.dialog('open');
-                });
-
-                // Handler for REJECTING a request
-                $('.reject-payout-request').on('click', function() {
-                    if (!confirm('" . esc_js(__('Are you sure you want to reject this payout request?', 'custom-lottery')) . "')) {
-                        return;
-                    }
-
-                    var button = $(this);
-                    var requestId = button.data('request-id');
-                    var nonce = button.data('nonce');
-
-                    $.post(ajaxurl, {
-                        action: 'reject_payout_request',
-                        nonce: nonce,
-                        request_id: requestId
-                    }, function(response) {
-                        if (response.success) {
-                            var row = button.closest('tr');
-                            row.find('td.status').text('Rejected');
-                            row.find('td.actions').html('N/A');
-                        } else {
-                            alert(response.data.message);
-                        }
-                    });
-                });
-
-                // We need to re-define the submit handler for the payout form on this page
-                $('#payout-form').on('submit', function(e) {
-                    e.preventDefault();
-
-                    var form = $(this);
-                    var isApproval = form.data('is-approval');
-                    var requestId = form.data('request-id');
-
-                    // Standard payout submission
-                    var formData = new FormData(this);
-                    formData.append('action', 'make_payout');
-                    // Nonce is already in the form
-
-                    $.ajax({
-                        url: ajaxurl,
-                        type: 'POST',
-                        data: formData,
-                        processData: false,
-                        contentType: false,
-                        success: function(payoutResponse) {
-                            if (payoutResponse.success) {
-                                // If the payout was successful AND this was an approval action,
-                                // now we mark the request as approved.
-                                if (isApproval) {
-                                    $.post(ajaxurl, {
-                                        action: 'approve_payout_request',
-                                        nonce: $('.approve-payout-request[data-request-id=\"' + requestId + '\"]').data('nonce'),
-                                        request_id: requestId
-                                    }, function(approvalResponse) {
-                                        if (approvalResponse.success) {
-                                            $('#modal-response').text('Payout successful and request approved.').css('color', 'green');
-                                             setTimeout(function() { location.reload(); }, 1500);
-                                        }
-                                    });
-                                }
-                            } else {
-                                $('#modal-response').text(payoutResponse.data.message).css('color', 'red');
-                            }
-                        },
-                        error: function() {
-                            $('#modal-response').text('An error occurred.').css('color', 'red');
-                        }
                     });
                 });
             });
