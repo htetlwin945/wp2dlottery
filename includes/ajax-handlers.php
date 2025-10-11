@@ -943,9 +943,9 @@ function custom_lottery_update_agent_callback() {
     $agent_id = isset($_POST['agent_id']) ? absint($_POST['agent_id']) : 0;
     $user_id = isset($_POST['user_id']) ? absint($_POST['user_id']) : 0;
     $agent_type = isset($_POST['agent_type']) ? sanitize_text_field($_POST['agent_type']) : '';
-    $commission_rate = isset($_POST['commission_rate']) ? sanitize_text_field($_POST['commission_rate']) : '0';
-    $per_number_limit = isset($_POST['per_number_limit']) ? sanitize_text_field($_POST['per_number_limit']) : '0';
-    $payout_threshold = isset($_POST['payout_threshold']) ? sanitize_text_field($_POST['payout_threshold']) : '';
+    $commission_rate = isset($_POST['commission_rate']) ? (float) sanitize_text_field($_POST['commission_rate']) : 0.0;
+    $per_number_limit = isset($_POST['per_number_limit']) ? (int) sanitize_text_field($_POST['per_number_limit']) : 0;
+    $payout_threshold = isset($_POST['payout_threshold']) ? sanitize_text_field($_POST['payout_threshold']) : ''; // Keep as string for empty check, then cast
     $status = isset($_POST['status']) ? sanitize_text_field($_POST['status']) : '';
     $morning_open = isset($_POST['morning_open']) ? sanitize_text_field($_POST['morning_open']) : '';
     $morning_close = isset($_POST['morning_close']) ? sanitize_text_field($_POST['morning_close']) : '';
@@ -962,7 +962,7 @@ function custom_lottery_update_agent_callback() {
         'agent_type' => $agent_type,
         'commission_rate' => ($agent_type === 'commission') ? $commission_rate : 0,
         'per_number_limit' => ($agent_type === 'commission') ? $per_number_limit : 0,
-        'payout_threshold' => !empty($payout_threshold) ? $payout_threshold : null,
+        'payout_threshold' => !empty($payout_threshold) ? (float) $payout_threshold : null,
         'status' => $status,
         'morning_open' => !empty($morning_open) ? $morning_open : null,
         'morning_close' => !empty($morning_close) ? $morning_close : null,
