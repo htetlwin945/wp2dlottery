@@ -153,7 +153,9 @@ class Lotto_Mod_Requests_List_Table extends WP_List_Table {
         }
         $where_sql = !empty($where_clauses) ? "WHERE " . implode(' AND ', $where_clauses) : '';
 
-        $total_items = $wpdb->get_var($wpdb->prepare("SELECT COUNT(r.id) FROM $table_requests r LEFT JOIN $table_entries e ON r.entry_id = e.id $where_sql", $params));
+        $total_items_query = "SELECT COUNT(r.id) FROM $table_requests r LEFT JOIN $table_entries e ON r.entry_id = e.id $where_sql";
+        $total_items = $wpdb->get_var($wpdb->prepare($total_items_query, $params));
+
 
         $this->set_pagination_args([
             'total_items' => $total_items,
@@ -174,7 +176,7 @@ class Lotto_Mod_Requests_List_Table extends WP_List_Table {
                  ORDER BY r.requested_at DESC
                  LIMIT %d OFFSET %d";
 
-        $query_params = array_merge($params, [$per_page, $offset]);
-        $this->items = $wpdb->get_results($wpdb->prepare($query, $query_params), ARRAY_A);
+        array_push($params, $per_page, $offset);
+        $this->items = $wpdb->get_results($wpdb->prepare($query, $params), ARRAY_A);
     }
 }

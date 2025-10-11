@@ -27,7 +27,8 @@ function custom_lottery_mod_requests_page_callback() {
     </style>
     <div class="wrap">
         <h1 class="wp-heading-inline"><?php echo esc_html__('Modification Requests', 'custom-lottery'); ?></h1>
-        <form method="post">
+        <form method="get">
+            <input type="hidden" name="page" value="<?php echo esc_attr($_REQUEST['page']); ?>" />
             <?php $mod_requests_list_table->display(); ?>
         </form>
     </div>
