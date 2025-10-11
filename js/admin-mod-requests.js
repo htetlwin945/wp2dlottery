@@ -8,8 +8,9 @@ jQuery(document).ready(function($) {
         var action = $link.hasClass('approve-mod-request') ? 'approve_modification_request' : 'reject_modification_request';
 
         // Disable the row actions to prevent multiple clicks
-        $link.closest('.row-actions').css('pointer-events', 'none');
-        $link.closest('td').append('<span class="spinner is-active" style="float: none;"></span>');
+        var $actionsContainer = $link.closest('.details-actions');
+        $actionsContainer.css('pointer-events', 'none');
+        $actionsContainer.append('<span class="spinner is-active" style="float: none; margin-left: 5px;"></span>');
 
         $.ajax({
             url: ajaxurl,
@@ -20,19 +21,23 @@ jQuery(document).ready(function($) {
                 nonce: nonce
             },
             success: function(response) {
+                var $row = $link.closest('tr');
                 if (response.success) {
-                    // Reload the page to show the updated status and remove the processed row from the pending list.
-                    location.reload();
+                    // Update the status column and remove the action buttons
+                    $row.find('td.column-status').text(response.data.new_status);
+                    $actionsContainer.remove();
                 } else {
                     alert('Error: ' + response.data);
-                    $link.closest('.details-actions').css('pointer-events', '');
-                    $row.find('.spinner').remove();
+                    // Re-enable the buttons on failure
+                    $actionsContainer.css('pointer-events', '');
+                    $actionsContainer.find('.spinner').remove();
                 }
             },
             error: function() {
                 alert('An unexpected error occurred. Please try again.');
-                $link.closest('.row-actions').css('pointer-events', '');
-                $link.closest('td').find('.spinner').remove();
+                // Re-enable the buttons on error
+                $actionsContainer.css('pointer-events', '');
+                $actionsContainer.find('.spinner').remove();
             }
         });
     });
