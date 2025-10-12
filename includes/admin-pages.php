@@ -827,7 +827,7 @@ function custom_lottery_admin_enqueue_scripts($hook) {
                 // Logic for Payout Requests Page
                 $('.cancel-payout-request').on('click', function(e) {
                     e.preventDefault();
-                    if (!confirm('" . esc_js(__('Are you sure you want to cancel this request?', 'custom-lottery')) . "')) {
+                    if (!confirm(\"" . esc_js(__('Are you sure you want to cancel this request?', 'custom-lottery')) . "\")) {
                         return;
                     }
 
