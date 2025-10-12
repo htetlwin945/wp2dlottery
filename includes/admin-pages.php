@@ -670,11 +670,16 @@ function custom_lottery_admin_enqueue_scripts($hook) {
                 var requestModal = $('#payout-request-modal').dialog({
                     autoOpen: false,
                     modal: true,
-                    width: 400,
+                    width: 600,
+                    height: 'auto',
                     dialogClass: 'wp-dialog',
                     close: function() {
-                        $('#payout-request-form')[0].reset();
-                        $('#request-modal-response').empty();
+                        // Reset the form when the popup is closed to ensure it's clean for the next use.
+                        var $form = $('#payout-request-form', this);
+                        if ($form.length) {
+                            $form[0].reset();
+                        }
+                        $('#request-modal-response', this).html('');
                     }
                 });
 
