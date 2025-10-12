@@ -915,7 +915,12 @@ function custom_lottery_manage_payout_request_callback() {
 
         if ($updated) {
             $wpdb->query('COMMIT');
-            wp_send_json_success(['message' => 'Request rejected successfully.']);
+            wp_send_json_success([
+                'message' => 'Request rejected successfully.',
+                'new_status' => __('Rejected', 'custom-lottery'),
+                'resolved_at' => current_time('mysql'),
+                'admin_notes' => $admin_notes,
+            ]);
         } else {
             $wpdb->query('ROLLBACK');
             wp_send_json_error(['message' => 'Failed to reject the request.']);
@@ -984,7 +989,13 @@ function custom_lottery_manage_payout_request_callback() {
 
         if ($request_updated && $balance_updated && $transaction_inserted) {
             $wpdb->query('COMMIT');
-            wp_send_json_success(['message' => 'Payout processed successfully.']);
+            wp_send_json_success([
+                'message' => 'Payout processed successfully.',
+                'new_status' => ($status === 'approved') ? __('Approved', 'custom-lottery') : __('Partially Paid', 'custom-lottery'),
+                'final_amount' => number_format($final_amount, 2) . ' Kyat',
+                'resolved_at' => current_time('mysql'),
+                'admin_notes' => $admin_notes,
+            ]);
         } else {
             $wpdb->query('ROLLBACK');
             wp_send_json_error(['message' => 'Failed to process payout. A database error occurred.']);

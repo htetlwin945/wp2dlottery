@@ -4,7 +4,7 @@ Donate link: https://example.com/
 Tags: lottery, 2-digit
 Requires at least: 5.0
 Tested up to: 6.0
-Stable tag: 1.7.0
+Stable tag: 1.7.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -33,6 +33,11 @@ Once activated, you can access all features through the "Lottery" menu in the Wo
 3. The settings page.
 
 == Changelog ==
+
+= 1.7.1 =
+* Fix: Resolved a critical bug where the "Process Payout" button on the Payout Management page was causing a page reload instead of opening the processing modal.
+* UX Improvement: Consolidated the agent's payout history into a single, comprehensive table on the "My Wallet" page, showing all request statuses. Removed the redundant "My Payout Requests" page.
+* UX Improvement: All payout-related actions now update the UI dynamically using AJAX, providing immediate feedback without requiring a full page reload.
 
 = 1.7.0 =
 * Refactor: Complete overhaul of the Agent Payout System for a more professional and transparent workflow.

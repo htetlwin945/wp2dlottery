@@ -121,15 +121,6 @@ function custom_lottery_admin_menu() {
             'custom_lottery_agent_wallet_page_callback'
         );
 
-        add_submenu_page(
-            'custom-lottery-agent-wallet', // Parent slug
-            __('My Payout Requests', 'custom-lottery'),
-            __('My Payout Requests', 'custom-lottery'),
-            'enter_lottery_numbers',
-            'custom-lottery-agent-payout-requests',
-            'custom_lottery_agent_payout_requests_page_callback'
-        );
-
     } else {
         // Original Menu for Admins, Managers, and other roles
         $dashboard_hook = add_menu_page(
@@ -339,29 +330,6 @@ function custom_lottery_payout_management_page_callback() {
         </div>
     </div>
     <?php
-}
-
-/**
- * Callback for the Agent Payout Requests page.
- */
-function custom_lottery_agent_payout_requests_page_callback() {
-    ?>
-    <div class="wrap">
-        <h1 class="wp-heading-inline"><?php echo esc_html__('My Payout Requests', 'custom-lottery'); ?></h1>
-        <p><?php echo esc_html__('Here is the history of all your payout requests.', 'custom-lottery'); ?></p>
-        <?php
-        if ( ! class_exists( 'Lotto_Agent_Payout_Requests_List_Table' ) ) {
-            require_once plugin_dir_path( __FILE__ ) . 'class-lotto-agent-payout-requests-list-table.php';
-        }
-        $requests_list_table = new Lotto_Agent_Payout_Requests_List_Table();
-        $requests_list_table->prepare_items();
-        $requests_list_table->display();
-        ?>
-    </div>
-    <?php
-}
-
-
 /**
  * Callback for the Agent Payouts page.
  */
@@ -494,7 +462,6 @@ function custom_lottery_agent_wallet_page_callback() {
     ?>
     <div class="wrap">
         <h1 class="wp-heading-inline"><?php echo esc_html__('My Wallet', 'custom-lottery'); ?></h1>
-        <a href="?page=custom-lottery-agent-payout-requests" class="page-title-action"><?php esc_html_e('View My Payout Requests', 'custom-lottery'); ?></a>
 
         <div id="wallet-summary" style="display: flex; gap: 20px; margin-top: 20px;">
             <div class="postbox" style="flex: 1;">
@@ -523,8 +490,8 @@ function custom_lottery_agent_wallet_page_callback() {
             <p style="margin-top: 20px;"><i><?php esc_html_e('Your available balance is below the threshold to request a payout.', 'custom-lottery'); ?></i></p>
         <?php endif; ?>
 
-        <h2 style="margin-top: 40px;"><?php echo esc_html__('Completed Payout History', 'custom-lottery'); ?></h2>
-        <p><?php echo esc_html__('Here you can see the history of all payouts you have received.', 'custom-lottery'); ?></p>
+        <h2 style="margin-top: 40px;"><?php echo esc_html__('Payout History', 'custom-lottery'); ?></h2>
+        <p><?php echo esc_html__('Here is the history of all your payout requests.', 'custom-lottery'); ?></p>
 
         <form method="get">
             <input type="hidden" name="page" value="<?php echo esc_attr($_REQUEST['page']); ?>" />
@@ -692,40 +659,8 @@ function custom_lottery_admin_enqueue_scripts($hook) {
         ");
     }
 
-    // For the Agent Payout Requests page
-    if ($hook === 'my-wallet_page_custom-lottery-agent-payout-requests') {
-        wp_add_inline_script('jquery', "
-            jQuery(document).ready(function($) {
-                $('.agent-cancel-payout-request').on('click', function() {
-                    if (!confirm('" . esc_js(__('Are you sure you want to cancel this payout request?', 'custom-lottery')) . "')) {
-                        return;
-                    }
-
-                    var button = $(this);
-                    var requestId = button.data('request-id');
-                    var nonce = button.data('nonce');
-
-                    button.prop('disabled', true).text('" . esc_js(__('Cancelling...', 'custom-lottery')) . "');
-
-                    $.post(ajaxurl, {
-                        action: 'agent_cancel_payout_request',
-                        request_id: requestId,
-                        nonce: nonce
-                    }, function(response) {
-                        if (response.success) {
-                            location.reload();
-                        } else {
-                            alert(response.data.message);
-                            button.prop('disabled', false).text('" . esc_js(__('Cancel Request', 'custom-lottery')) . "');
-                        }
-                    });
-                });
-            });
-        ");
-    }
-
     // For the Agent Wallet page
-    if ($hook === 'agent-portal_page_custom-lottery-agent-wallet') {
+    if ($hook === 'agent-portal_page_custom-lottery-agent-wallet' || $hook === 'my-wallet_page_custom-lottery-agent-payout-requests') {
         wp_enqueue_script('jquery-ui-dialog');
         wp_enqueue_style('wp-admin'); // For dialog styling
 
@@ -813,6 +748,7 @@ function custom_lottery_admin_enqueue_scripts($hook) {
                     e.preventDefault();
                     var formData = new FormData(this);
                     formData.append('action', 'manage_payout_request');
+                    var requestId = $('#process-request-id').val();
 
                     $('#process-modal-response').text('Processing...').css('color', 'black');
 
@@ -827,7 +763,13 @@ function custom_lottery_admin_enqueue_scripts($hook) {
                                 $('#process-modal-response').text(response.data.message).css('color', 'green');
                                 setTimeout(function() {
                                     processModal.dialog('close');
-                                    location.reload();
+                                    // Dynamically update the row
+                                    var row = $('button[data-request-id=\"' + requestId + '\"]').closest('tr');
+                                    row.find('.status').text(response.data.new_status);
+                                    row.find('.column-final_amount').text(response.data.final_amount);
+                                    row.find('.column-resolved_at').text(response.data.resolved_at);
+                                    row.find('.column-admin_notes').text(response.data.admin_notes);
+                                    row.find('.column-actions').html('N/A');
                                 }, 1500);
                             } else {
                                 $('#process-modal-response').text(response.data.message).css('color', 'red');
@@ -868,9 +810,10 @@ function custom_lottery_admin_enqueue_scripts($hook) {
 
                 $('#reject-payout-form').on('submit', function(e) {
                     e.preventDefault();
+                    var requestId = $('#reject-request-id').val();
                     var data = {
                         action: 'manage_payout_request',
-                        request_id: $('#reject-request-id').val(),
+                        request_id: requestId,
                         nonce: $('#reject-payout-form #nonce_reject').val(),
                         admin_notes: $('#reject-admin-notes').val(),
                         outcome: 'reject'
@@ -883,7 +826,12 @@ function custom_lottery_admin_enqueue_scripts($hook) {
                             $('#reject-modal-response').text(response.data.message).css('color', 'green');
                             setTimeout(function() {
                                 rejectModal.dialog('close');
-                                location.reload();
+                                // Dynamically update the row
+                                var row = $('button[data-request-id=\"' + requestId + '\"]').closest('tr');
+                                row.find('.status').text(response.data.new_status);
+                                row.find('.column-resolved_at').text(response.data.resolved_at);
+                                row.find('.column-admin_notes').text(response.data.admin_notes);
+                                row.find('.column-actions').html('N/A');
                             }, 1500);
                         } else {
                             $('#reject-modal-response').text(response.data.message).css('color', 'red');
@@ -926,115 +874,6 @@ function custom_lottery_admin_enqueue_scripts($hook) {
                     }).fail(function() {
                         \$responseDiv.html('<p class=\"notice notice-error\">An unexpected error occurred. Please try again.</p>');
                         \$submitButton.val(originalButtonText).prop('disabled', false);
-                    });
-                });
-            });
-        ");
-    }
-
-    if ($hook === 'lottery_page_custom-lottery-payout-requests') {
-        wp_enqueue_script('jquery-ui-dialog');
-        wp_enqueue_style('wp-admin'); // For dialog styling
-
-        wp_add_inline_script('jquery-ui-dialog', "
-            jQuery(document).ready(function($) {
-                // Re-use the existing payout modal
-                var payoutModal = $('#payout-modal').dialog({
-                    autoOpen: false,
-                    modal: true,
-                    width: 400,
-                    close: function() {
-                        $('#payout-form')[0].reset();
-                        $('#modal-response').empty();
-                    }
-                });
-
-                // Handler for APPROVING a request
-                $('.approve-payout-request').on('click', function() {
-                    var requestId = $(this).data('request-id');
-                    var agentId = $(this).data('agent-id');
-                    var agentName = $(this).data('agent-name');
-                    var amount = $(this).data('amount');
-
-                    // Pre-fill and open the payout modal
-                    $('#modal-agent-id').val(agentId);
-                    $('#modal-agent-name').text(agentName);
-                    $('#payout-amount').val(amount);
-
-                    // Store request-specific data on the form for the submit handler
-                    $('#payout-form').data('request-id', requestId);
-                    $('#payout-form').data('is-approval', true); // Flag to know this is from an approval click
-
-                    payoutModal.dialog('open');
-                });
-
-                // Handler for REJECTING a request
-                $('.reject-payout-request').on('click', function() {
-                    if (!confirm('" . esc_js(__('Are you sure you want to reject this payout request?', 'custom-lottery')) . "')) {
-                        return;
-                    }
-
-                    var button = $(this);
-                    var requestId = button.data('request-id');
-                    var nonce = button.data('nonce');
-
-                    $.post(ajaxurl, {
-                        action: 'reject_payout_request',
-                        nonce: nonce,
-                        request_id: requestId
-                    }, function(response) {
-                        if (response.success) {
-                            var row = button.closest('tr');
-                            row.find('td.status').text('Rejected');
-                            row.find('td.actions').html('N/A');
-                        } else {
-                            alert(response.data.message);
-                        }
-                    });
-                });
-
-                // We need to re-define the submit handler for the payout form on this page
-                $('#payout-form').on('submit', function(e) {
-                    e.preventDefault();
-
-                    var form = $(this);
-                    var isApproval = form.data('is-approval');
-                    var requestId = form.data('request-id');
-
-                    // Standard payout submission
-                    var formData = new FormData(this);
-                    formData.append('action', 'make_payout');
-                    // Nonce is already in the form
-
-                    $.ajax({
-                        url: ajaxurl,
-                        type: 'POST',
-                        data: formData,
-                        processData: false,
-                        contentType: false,
-                        success: function(payoutResponse) {
-                            if (payoutResponse.success) {
-                                // If the payout was successful AND this was an approval action,
-                                // now we mark the request as approved.
-                                if (isApproval) {
-                                    $.post(ajaxurl, {
-                                        action: 'approve_payout_request',
-                                        nonce: $('.approve-payout-request[data-request-id=\"' + requestId + '\"]').data('nonce'),
-                                        request_id: requestId
-                                    }, function(approvalResponse) {
-                                        if (approvalResponse.success) {
-                                            $('#modal-response').text('Payout successful and request approved.').css('color', 'green');
-                                             setTimeout(function() { location.reload(); }, 1500);
-                                        }
-                                    });
-                                }
-                            } else {
-                                $('#modal-response').text(payoutResponse.data.message).css('color', 'red');
-                            }
-                        },
-                        error: function() {
-                            $('#modal-response').text('An error occurred.').css('color', 'red');
-                        }
                     });
                 });
             });
