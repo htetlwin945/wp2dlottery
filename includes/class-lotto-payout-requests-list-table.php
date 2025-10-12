@@ -18,9 +18,12 @@ class Lotto_Payout_Requests_List_Table extends WP_List_Table {
         $columns = [
             'agent_name'    => __( 'Agent Name', 'custom-lottery' ),
             'amount'        => __( 'Amount Requested', 'custom-lottery' ),
+            'final_amount'  => __( 'Amount Paid', 'custom-lottery' ),
             'status'        => __( 'Status', 'custom-lottery' ),
             'requested_at'  => __( 'Date Requested', 'custom-lottery' ),
+            'resolved_at'   => __( 'Date Processed', 'custom-lottery' ),
             'notes'         => __( 'Agent Notes', 'custom-lottery' ),
+            'admin_notes'   => __( 'Admin Notes', 'custom-lottery' ),
             'actions'       => __( 'Actions', 'custom-lottery' ),
         ];
         return $columns;
@@ -81,12 +84,22 @@ class Lotto_Payout_Requests_List_Table extends WP_List_Table {
                 return '<strong>' . esc_html($item['agent_name']) . '</strong>';
             case 'amount':
                 return number_format($item['amount'], 2) . ' Kyat';
+            case 'final_amount':
+                return $item['final_amount'] ? number_format($item['final_amount'], 2) . ' Kyat' : 'N/A';
             case 'status':
-                return ucfirst(esc_html($item['status']));
+                $status_text = ucfirst(esc_html($item['status']));
+                if ($item['status'] === 'approved' && $item['final_amount'] < $item['amount']) {
+                    $status_text = __('Partially Paid', 'custom-lottery');
+                }
+                return $status_text;
             case 'notes':
                 return esc_html($item['notes']);
+            case 'admin_notes':
+                return esc_html($item['admin_notes']);
             case 'requested_at':
                 return date('Y-m-d H:i:s', strtotime($item['requested_at']));
+            case 'resolved_at':
+                return $item['resolved_at'] ? date('Y-m-d H:i:s', strtotime($item['resolved_at'])) : 'N/A';
             default:
                 return print_r( $item, true );
         }
@@ -94,19 +107,17 @@ class Lotto_Payout_Requests_List_Table extends WP_List_Table {
 
     public function column_actions( $item ) {
         if ($item['status'] === 'pending') {
-            $approve_nonce = wp_create_nonce('payout_request_approve_' . $item['id']);
-            $reject_nonce = wp_create_nonce('payout_request_reject_' . $item['id']);
-
+            $nonce = wp_create_nonce('manage_payout_request_nonce');
             $actions = sprintf(
-                '<button class="button button-primary approve-payout-request" data-request-id="%1$d" data-agent-id="%2$d" data-agent-name="%3$s" data-amount="%4$s" data-nonce="%5$s">%6$s</button> ' .
-                '<button class="button button-secondary reject-payout-request" data-request-id="%1$d" data-nonce="%7$s">%8$s</button>',
+                '<button class="button button-primary process-payout-button" data-request-id="%1$d" data-agent-id="%2$d" data-agent-name="%3$s" data-amount="%4$s" data-agent-notes="%5$s" data-nonce="%6$s">%7$s</button> ' .
+                '<button class="button button-secondary reject-payout-button" data-request-id="%1$d" data-agent-name="%3$s" data-nonce="%6$s">%8$s</button>',
                 esc_attr($item['id']),
                 esc_attr($item['agent_id']),
                 esc_attr($item['agent_name']),
                 esc_attr($item['amount']),
-                esc_attr($approve_nonce),
-                __('Approve', 'custom-lottery'),
-                esc_attr($reject_nonce),
+                esc_attr($item['notes']),
+                esc_attr($nonce),
+                __('Process Payout', 'custom-lottery'),
                 __('Reject', 'custom-lottery')
             );
             return $actions;

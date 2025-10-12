@@ -45,4 +45,23 @@ function custom_lottery_apply_schema_mods() {
     if (empty($wpdb->get_results("SHOW COLUMNS FROM {$table_entries} LIKE '{$column_name_status}'"))) {
         $wpdb->query("ALTER TABLE {$table_entries} ADD {$column_name_status} VARCHAR(20) NULL DEFAULT NULL");
     }
+
+    // Add final_amount and admin_notes to lotto_payout_requests table.
+    // dbDelta is idempotent, so we can define the full schema and it will add/modify columns as needed.
+    $table_name_payout_requests = $wpdb->prefix . 'lotto_payout_requests';
+    $sql_payout_requests = "CREATE TABLE $table_name_payout_requests (
+        id bigint(20) NOT NULL AUTO_INCREMENT,
+        agent_id bigint(20) NOT NULL,
+        amount decimal(10, 2) NOT NULL,
+        final_amount decimal(10, 2) NULL,
+        status varchar(20) DEFAULT 'pending' NOT NULL,
+        requested_at datetime DEFAULT '0000-00-00 00:00:00' NOT NULL,
+        resolved_by bigint(20) NULL,
+        resolved_at datetime NULL,
+        notes text NULL,
+        admin_notes text NULL,
+        PRIMARY KEY  (id),
+        KEY agent_id (agent_id)
+    ) $charset_collate;";
+    dbDelta( $sql_payout_requests );
 }
