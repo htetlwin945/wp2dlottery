@@ -330,6 +330,7 @@ function custom_lottery_payout_management_page_callback() {
         </div>
     </div>
     <?php
+}
 /**
  * Callback for the Agent Payouts page.
  */
