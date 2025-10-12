@@ -765,7 +765,7 @@ function custom_lottery_admin_enqueue_scripts($hook) {
                                 setTimeout(function() {
                                     processModal.dialog('close');
                                     // Dynamically update the row
-                                    var row = $('button[data-request-id="' + requestId + '"]').closest('tr');
+                                    var row = $("button[data-request-id='" + requestId + "']").closest('tr');
                                     row.find('.status').text(response.data.new_status);
                                     row.find('.column-final_amount').text(response.data.final_amount);
                                     row.find('.column-resolved_at').text(response.data.resolved_at);
