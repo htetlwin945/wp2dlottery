@@ -558,21 +558,21 @@ function custom_lottery_agent_wallet_page_callback() {
         ?>
 
         <!-- Payout Request Modal -->
-        <div id="payout-request-modal" title="Request a Payout" style="display:none;">
+        <div id="payout-request-modal" title="<?php esc_attr_e('Request a Payout', 'custom-lottery'); ?>" style="display:none;">
             <form id="payout-request-form">
                 <?php wp_nonce_field('agent_request_payout_action', 'agent_request_payout_nonce'); ?>
                 <p>
-                    <label for="request-amount"><?php esc_html_e('Payout Amount (Kyat)', 'custom-lottery'); ?></label>
-                    <input type="number" id="request-amount" name="amount" class="widefat" step="0.01" min="<?php echo esc_attr($payout_threshold); ?>" max="<?php echo esc_attr($current_balance); ?>" required>
-                    <p class="description"><?php printf(__('Minimum: %s, Maximum: %s (Your Current Balance)'), number_format($payout_threshold, 2), number_format($current_balance, 2)); ?></p>
+                    <label for="request-amount"><strong><?php esc_html_e('Payout Amount (Kyat)', 'custom-lottery'); ?></strong></label>
+                    <input type="number" id="request-amount" name="amount" class="widefat" style="margin-top: 5px;" step="0.01" min="<?php echo esc_attr($payout_threshold); ?>" max="<?php echo esc_attr($available_balance); ?>" required>
+                    <p class="description"><?php printf(__('Minimum: %s, Maximum: %s (Your Available Balance)'), number_format($payout_threshold, 2), number_format($available_balance, 2)); ?></p>
                 </p>
                 <p>
-                    <label for="request-notes"><?php esc_html_e('Notes for Admin (Optional)', 'custom-lottery'); ?></label>
-                    <textarea id="request-notes" name="notes" class="widefat" rows="3"></textarea>
+                    <label for="request-notes"><strong><?php esc_html_e('Notes for Admin (Optional)', 'custom-lottery'); ?></strong></label>
+                    <textarea id="request-notes" name="notes" class="widefat" style="margin-top: 5px;" rows="4"></textarea>
                 </p>
-                <button type="submit" class="button button-primary"><?php esc_html_e('Submit Request', 'custom-lottery'); ?></button>
+                 <button type="submit" class="button button-primary" style="margin-top:15px; width: 100%; height: 40px; font-size: 16px;"><?php esc_html_e('Submit Request', 'custom-lottery'); ?></button>
             </form>
-            <div id="request-modal-response" style="margin-top:10px;"></div>
+            <div id="request-modal-response" style="margin-top:15px; text-align: center;"></div>
         </div>
     </div>
     <?php
@@ -793,14 +793,34 @@ function custom_lottery_admin_enqueue_scripts($hook) {
 
                 $('#payout-request-form').on('submit', function(e) {
                     e.preventDefault();
-                    $('#request-modal-response').text('Submitting...').css('color', 'black');
-                    $.post(ajaxurl, $(this).serialize() + '&action=agent_request_payout', function(response) {
+                    var form = $(this);
+                    var submitButton = form.find('button[type="submit"]');
+                    var responseDiv = $('#request-modal-response');
+
+                    responseDiv.text('Submitting...').css('color', 'black');
+                    submitButton.prop('disabled', true);
+
+                    var data = {
+                        action: 'agent_request_payout',
+                        nonce: $('#agent_request_payout_nonce').val(),
+                        amount: $('#request-amount').val(),
+                        notes: $('#request-notes').val()
+                    };
+
+                    $.post(ajaxurl, data, function(response) {
                         if (response.success) {
-                            $('#request-modal-response').text(response.data.message).css('color', 'green');
-                            setTimeout(function() { location.reload(); }, 2000);
+                            responseDiv.text(response.data.message).css('color', 'green');
+                            setTimeout(function() {
+                                requestModal.dialog('close');
+                                location.reload();
+                            }, 2000);
                         } else {
-                            $('#request-modal-response').text(response.data.message).css('color', 'red');
+                            responseDiv.text(response.data.message).css('color', 'red');
+                            submitButton.prop('disabled', false);
                         }
+                    }).fail(function() {
+                        responseDiv.text('An unknown error occurred.').css('color', 'red');
+                        submitButton.prop('disabled', false);
                     });
                 });
 
