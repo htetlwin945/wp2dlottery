@@ -519,8 +519,8 @@ function custom_lottery_agent_wallet_page_callback() {
                 <?php wp_nonce_field('agent_request_payout_action', 'agent_request_payout_nonce'); ?>
                 <p>
                     <label for="request-amount"><?php esc_html_e('Payout Amount (Kyat)', 'custom-lottery'); ?></label>
-                    <input type="number" id="request-amount" name="amount" class="widefat" step="0.01" min="<?php echo esc_attr($payout_threshold); ?>" max="<?php echo esc_attr($current_balance); ?>" required>
-                    <p class="description"><?php printf(__('Minimum: %s, Maximum: %s (Your Current Balance)'), number_format($payout_threshold, 2), number_format($current_balance, 2)); ?></p>
+                    <input type="number" id="request-amount" name="amount" class="widefat" step="0.01" min="<?php echo esc_attr($payout_threshold); ?>" max="<?php echo esc_attr($total_balance); ?>" required>
+                    <p class="description"><?php printf(__('Minimum: %s, Maximum: %s (Your Current Balance)'), number_format($payout_threshold, 2), number_format($total_balance, 2)); ?></p>
                 </p>
                 <p>
                     <label for="request-notes"><?php esc_html_e('Notes for Admin (Optional)', 'custom-lottery'); ?></label>
