@@ -671,6 +671,7 @@ function custom_lottery_admin_enqueue_scripts($hook) {
                     autoOpen: false,
                     modal: true,
                     width: 400,
+                    dialogClass: 'wp-dialog',
                     close: function() {
                         $('#payout-request-form')[0].reset();
                         $('#request-modal-response').empty();
